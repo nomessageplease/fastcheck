@@ -1,54 +1,65 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Header } from "./header"
-import { ProjectsPage } from "./projects-page"
-import { SettingsPage } from "./settings-page"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Calendar, CheckCircle, Clock, Plus, TrendingUp } from "lucide-react"
-import { MonthView } from "./calendar-views/month-view"
-import { DayView } from "./calendar-views/day-view"
-import { WeekView } from "./calendar-views/week-view"
-import { TaskDialog } from "./task-dialog"
-import { NotificationManager } from "./notification-manager"
+import type { User } from "@supabase/supabase-js"
 import { supabase } from "@/lib/supabase/client"
-import type { Project, Task } from "@/lib/supabase/types"
+import type { Project, Task, Executor } from "@/lib/supabase/types"
+import { Header } from "./header"
+import { TaskView } from "./task-view"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Calendar, CalendarDays, CalendarRange } from "lucide-react"
+import { SettingsPage } from "./settings-page"
+import { NotificationManager } from "./notification-manager"
+import { ReviewDialog } from "./review-dialog"
+import { ProjectsPage } from "./projects-page"
 
-export function Dashboard() {
-  const [currentView, setCurrentView] = useState("dashboard")
-  const [calendarView, setCalendarView] = useState<"day" | "week" | "month">("month")
-  const [selectedDate, setSelectedDate] = useState(new Date())
-  const [showTaskDialog, setShowTaskDialog] = useState(false)
+interface DashboardProps {
+  user: User
+}
+
+export function Dashboard({ user }: DashboardProps) {
   const [projects, setProjects] = useState<Project[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
+  const [executors, setExecutors] = useState<Executor[]>([])
   const [loading, setLoading] = useState(true)
+  const [viewType, setViewType] = useState<"month" | "week" | "day">("day")
+  const [currentPage, setCurrentPage] = useState<"dashboard" | "settings" | "projects">("dashboard")
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false)
+  const [reviewTaskId, setReviewTaskId] = useState<string | undefined>(undefined)
 
   useEffect(() => {
     loadData()
+    setupRealtimeSubscriptions()
+  }, [user.id])
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.slice(1)
+      if (hash === "settings") {
+        setCurrentPage("settings")
+      } else if (hash === "projects") {
+        setCurrentPage("projects")
+      } else {
+        setCurrentPage("dashboard")
+      }
+    }
+
+    handleHashChange()
+    window.addEventListener("hashchange", handleHashChange)
+    return () => window.removeEventListener("hashchange", handleHashChange)
   }, [])
 
   const loadData = async () => {
     try {
-      setLoading(true)
+      const [projectsData, tasksData, executorsData] = await Promise.all([
+        supabase.from("projects").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+        supabase.from("tasks").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+        supabase.from("executors").select("*").eq("user_id", user.id).order("name"),
+      ])
 
-      // Load projects
-      const { data: projectsData, error: projectsError } = await supabase
-        .from("projects")
-        .select("*")
-        .order("created_at", { ascending: false })
-
-      if (projectsError) throw projectsError
-      setProjects(projectsData || [])
-
-      // Load tasks
-      const { data: tasksData, error: tasksError } = await supabase
-        .from("tasks")
-        .select("*, project:projects(*)")
-        .order("created_at", { ascending: false })
-
-      if (tasksError) throw tasksError
-      setTasks(tasksData || [])
+      if (projectsData.data) setProjects(projectsData.data)
+      if (tasksData.data) setTasks(tasksData.data)
+      if (executorsData.data) setExecutors(executorsData.data)
     } catch (error) {
       console.error("Error loading data:", error)
     } finally {
@@ -56,136 +67,155 @@ export function Dashboard() {
     }
   }
 
-  const completedTasks = tasks.filter((task) => task.status === "completed").length
-  const pendingTasks = tasks.filter((task) => task.status === "pending").length
-  const todayTasks = tasks.filter((task) => {
-    const taskDate = new Date(task.start_date)
-    const today = new Date()
-    return taskDate.toDateString() === today.toDateString()
-  }).length
+  const setupRealtimeSubscriptions = () => {
+    // Подписка на изменения проектов
+    const projectsSubscription = supabase
+      .channel("projects-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "projects",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          loadData()
+        },
+      )
+      .subscribe()
 
-  const renderMainContent = () => {
-    switch (currentView) {
-      case "projects":
-        return <ProjectsPage />
-      case "settings":
-        return <SettingsPage />
-      default:
-        return (
-          <div className="space-y-4 sm:space-y-6">
-            {/* Stats Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-xs sm:text-sm font-medium">Всего задач</CardTitle>
-                  <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-lg sm:text-2xl font-bold">{tasks.length}</div>
-                  <p className="text-xs text-muted-foreground">активных проектов: {projects.length}</p>
-                </CardContent>
-              </Card>
+    // Подписка на изменения задач
+    const tasksSubscription = supabase
+      .channel("tasks-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "tasks",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          loadData()
+        },
+      )
+      .subscribe()
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-xs sm:text-sm font-medium">Выполнено</CardTitle>
-                  <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-lg sm:text-2xl font-bold">{completedTasks}</div>
-                  <p className="text-xs text-muted-foreground">
-                    {tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0}% от общего
-                  </p>
-                </CardContent>
-              </Card>
+    // Подписка на изменения исполнителей
+    const executorsSubscription = supabase
+      .channel("executors-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "executors",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          loadData()
+        },
+      )
+      .subscribe()
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-xs sm:text-sm font-medium">В ожидании</CardTitle>
-                  <Clock className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-lg sm:text-2xl font-bold">{pendingTasks}</div>
-                  <p className="text-xs text-muted-foreground">требуют внимания</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-xs sm:text-sm font-medium">Сегодня</CardTitle>
-                  <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-lg sm:text-2xl font-bold">{todayTasks}</div>
-                  <p className="text-xs text-muted-foreground">запланировано</p>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Calendar View Controls */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
-              <div className="flex space-x-2">
-                {(["day", "week", "month"] as const).map((view) => (
-                  <Button
-                    key={view}
-                    variant={calendarView === view ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setCalendarView(view)}
-                    className="text-xs sm:text-sm"
-                  >
-                    {view === "day" ? "День" : view === "week" ? "Неделя" : "Месяц"}
-                  </Button>
-                ))}
-              </div>
-              <Button onClick={() => setShowTaskDialog(true)} size="sm" className="w-full sm:w-auto">
-                <Plus className="h-4 w-4 mr-2" />
-                <span className="sm:inline">Новая задача</span>
-              </Button>
-            </div>
-
-            {/* Calendar View */}
-            <Card>
-              <CardContent className="p-3 sm:p-6">
-                {calendarView === "month" && (
-                  <MonthView selectedDate={selectedDate} onDateSelect={setSelectedDate} tasks={tasks} />
-                )}
-                {calendarView === "week" && (
-                  <WeekView selectedDate={selectedDate} onDateSelect={setSelectedDate} tasks={tasks} />
-                )}
-                {calendarView === "day" && (
-                  <DayView selectedDate={selectedDate} onDateSelect={setSelectedDate} tasks={tasks} />
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        )
+    return () => {
+      supabase.removeChannel(projectsSubscription)
+      supabase.removeChannel(tasksSubscription)
+      supabase.removeChannel(executorsSubscription)
     }
+  }
+
+  const handleOpenReview = (taskId?: string) => {
+    setReviewTaskId(taskId)
+    setReviewDialogOpen(true)
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <Header currentView={currentView} onViewChange={setCurrentView} />
-        <main className="container mx-auto px-4 py-6">
-          <div className="flex items-center justify-center h-64">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
-              <p className="mt-2 text-sm text-gray-600">Загрузка...</p>
-            </div>
-          </div>
-        </main>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
       </div>
     )
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header currentView={currentView} onViewChange={setCurrentView} />
-      <main className="container mx-auto px-4 py-4 sm:py-6 max-w-7xl">{renderMainContent()}</main>
+      <Header user={user} currentPage={currentPage} loadData={loadData} />
 
-      <TaskDialog open={showTaskDialog} onOpenChange={setShowTaskDialog} onTaskCreated={loadData} />
+      {/* Менеджер уведомлений */}
+      <NotificationManager user={user} tasks={tasks} projects={projects} onOpenReview={handleOpenReview} />
 
-      <NotificationManager />
+      {currentPage === "settings" ? (
+        <div className="p-6">
+          <SettingsPage user={user} projects={projects} executors={executors} onDataChange={loadData} />
+        </div>
+      ) : currentPage === "projects" ? (
+        <div className="p-6">
+          <ProjectsPage user={user} projects={projects} executors={executors} onDataChange={loadData} />
+        </div>
+      ) : (
+        <div className="p-3 lg:p-6">
+          <Tabs defaultValue="day" className="w-full" onValueChange={(value) => setViewType(value as any)}>
+            <TabsList>
+              <TabsTrigger value="month" className="flex items-center gap-2">
+                <CalendarRange className="h-4 w-4" />
+                Месяц
+              </TabsTrigger>
+              <TabsTrigger value="week" className="flex items-center gap-2">
+                <CalendarDays className="h-4 w-4" />
+                Неделя
+              </TabsTrigger>
+              <TabsTrigger value="day" className="flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                День
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="month" className="mt-6">
+              <TaskView
+                tasks={tasks}
+                projects={projects}
+                executors={executors}
+                user={user}
+                viewType="month"
+                onTasksChange={loadData}
+              />
+            </TabsContent>
+
+            <TabsContent value="week" className="mt-6">
+              <TaskView
+                tasks={tasks}
+                projects={projects}
+                executors={executors}
+                user={user}
+                viewType="week"
+                onTasksChange={loadData}
+              />
+            </TabsContent>
+
+            <TabsContent value="day" className="mt-6">
+              <TaskView
+                tasks={tasks}
+                projects={projects}
+                executors={executors}
+                user={user}
+                viewType="day"
+                onTasksChange={loadData}
+              />
+            </TabsContent>
+          </Tabs>
+        </div>
+      )}
+
+      {/* Глобальный диалог проверки */}
+      <ReviewDialog
+        open={reviewDialogOpen}
+        onOpenChange={setReviewDialogOpen}
+        user={user}
+        onReviewComplete={loadData}
+        specificTaskId={reviewTaskId}
+      />
     </div>
   )
 }

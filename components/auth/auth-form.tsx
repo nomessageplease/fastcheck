@@ -133,40 +133,34 @@ export function AuthForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-8">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="text-center space-y-2">
-          <CardTitle className="text-xl sm:text-2xl">FastCheck</CardTitle>
-          <CardDescription className="text-sm">Минималистичный трекер задач</CardDescription>
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl">FastCheck</CardTitle>
+          <CardDescription>Минималистичный трекер задач</CardDescription>
         </CardHeader>
-        <CardContent className="px-4 sm:px-6">
+        <CardContent>
           {message && (
             <Alert
               className={`mb-4 ${message.type === "error" ? "border-red-200 bg-red-50" : "border-green-200 bg-green-50"}`}
             >
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription className={`text-sm ${message.type === "error" ? "text-red-800" : "text-green-800"}`}>
+              <AlertDescription className={message.type === "error" ? "text-red-800" : "text-green-800"}>
                 {message.text}
               </AlertDescription>
             </Alert>
           )}
 
           <Tabs defaultValue="signin" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 h-12">
-              <TabsTrigger value="signin" className="text-sm">
-                Вход
-              </TabsTrigger>
-              <TabsTrigger value="signup" className="text-sm">
-                Регистрация
-              </TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="signin">Вход</TabsTrigger>
+              <TabsTrigger value="signup">Регистрация</TabsTrigger>
             </TabsList>
 
             <TabsContent value="signin" className="mt-6">
               <form onSubmit={handleSignIn} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="signin-email" className="text-sm">
-                    Email
-                  </Label>
+                  <Label htmlFor="signin-email">Email</Label>
                   <Input
                     id="signin-email"
                     type="email"
@@ -175,13 +169,10 @@ export function AuthForm() {
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     disabled={loading}
-                    className="h-12 text-base"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="signin-password" className="text-sm">
-                    Пароль
-                  </Label>
+                  <Label htmlFor="signin-password">Пароль</Label>
                   <div className="relative">
                     <Input
                       id="signin-password"
@@ -191,13 +182,12 @@ export function AuthForm() {
                       required
                       disabled={loading}
                       minLength={6}
-                      className="h-12 text-base pr-12"
                     />
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="absolute right-0 top-0 h-12 px-3 hover:bg-transparent"
+                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                       onClick={() => setShowPassword(!showPassword)}
                       disabled={loading}
                     >
@@ -205,7 +195,7 @@ export function AuthForm() {
                     </Button>
                   </div>
                 </div>
-                <Button type="submit" className="w-full h-12 text-base" disabled={loading}>
+                <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -221,9 +211,7 @@ export function AuthForm() {
             <TabsContent value="signup" className="mt-6">
               <form onSubmit={handleSignUp} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="signup-email" className="text-sm">
-                    Email
-                  </Label>
+                  <Label htmlFor="signup-email">Email</Label>
                   <Input
                     id="signup-email"
                     type="email"
@@ -232,13 +220,10 @@ export function AuthForm() {
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     disabled={loading}
-                    className="h-12 text-base"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="signup-password" className="text-sm">
-                    Пароль
-                  </Label>
+                  <Label htmlFor="signup-password">Пароль</Label>
                   <div className="relative">
                     <Input
                       id="signup-password"
@@ -249,13 +234,12 @@ export function AuthForm() {
                       disabled={loading}
                       minLength={6}
                       placeholder="Минимум 6 символов"
-                      className="h-12 text-base pr-12"
                     />
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="absolute right-0 top-0 h-12 px-3 hover:bg-transparent"
+                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                       onClick={() => setShowPassword(!showPassword)}
                       disabled={loading}
                     >
@@ -263,7 +247,7 @@ export function AuthForm() {
                     </Button>
                   </div>
                 </div>
-                <Button type="submit" className="w-full h-12 text-base" disabled={loading}>
+                <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />

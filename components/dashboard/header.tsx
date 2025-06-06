@@ -1,90 +1,93 @@
 "use client"
 
-import { useState } from "react"
+import type { User } from "@supabase/supabase-js"
+import { supabase } from "@/lib/supabase/client"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
-import { Calendar, Settings, FolderOpen, Menu, X } from "lucide-react"
+import { Settings, LogOut, LayoutDashboard, FolderKanban } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 interface HeaderProps {
-  currentView: string
-  onViewChange: (view: string) => void
+  user: User | null
+  currentPage: "dashboard" | "settings" | "projects"
+  loadData: () => void
 }
 
-export function Header({ currentView, onViewChange }: HeaderProps) {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+export function Header({ user, currentPage, loadData }: HeaderProps) {
+  const router = useRouter()
 
-  const navItems = [
-    { id: "dashboard", label: "Главная", icon: Calendar, shortLabel: "Гл." },
-    { id: "projects", label: "Проекты", icon: FolderOpen, shortLabel: "Пр." },
-    { id: "settings", label: "Настройки", icon: Settings, shortLabel: "Н." },
-  ]
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    router.refresh()
+  }
+
+  const getInitials = (email: string) => {
+    return email.substring(0, 2).toUpperCase()
+  }
 
   return (
-    <header className="bg-white border-b border-gray-200 px-4 py-3 sm:px-6">
-      <div className="flex items-center justify-between">
+    <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+      <div className="container mx-auto px-4 py-3 flex justify-between items-center">
         <div className="flex items-center space-x-4">
-          <h1 className="text-lg sm:text-xl font-semibold text-gray-900">FastCheck</h1>
-
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex space-x-1">
-            {navItems.map((item) => (
-              <Button
-                key={item.id}
-                variant={currentView === item.id ? "default" : "ghost"}
-                size="sm"
-                onClick={() => onViewChange(item.id)}
-                className="flex items-center space-x-2"
-              >
-                <item.icon className="h-4 w-4" />
-                <span>{item.label}</span>
-              </Button>
-            ))}
-          </nav>
+          <Button
+            variant="ghost"
+            onClick={() => (window.location.hash = "")}
+            className="text-xl font-bold hover:bg-gray-100 p-2"
+          >
+            FastCheck
+          </Button>
         </div>
 
-        {/* Mobile Menu Button */}
-        <Button variant="ghost" size="sm" className="md:hidden" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-          {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </Button>
+        <div className="flex items-center space-x-4">
+          <Button variant="ghost" onClick={() => (window.location.hash = "projects")} className="text-sm font-medium">
+            Проекты
+          </Button>
 
-        {/* Mobile Navigation Tabs */}
-        <nav className="flex md:hidden space-x-1">
-          {navItems.map((item) => (
-            <Button
-              key={item.id}
-              variant={currentView === item.id ? "default" : "ghost"}
-              size="sm"
-              onClick={() => onViewChange(item.id)}
-              className="flex flex-col items-center space-y-1 px-2 py-1 h-auto min-w-[60px]"
-            >
-              <item.icon className="h-4 w-4" />
-              <span className="text-xs">{item.shortLabel}</span>
-            </Button>
-          ))}
-        </nav>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="rounded-full">
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={user?.user_metadata?.avatar_url || "/placeholder.svg"} />
+                  <AvatarFallback>{user?.email ? getInitials(user.email) : "U"}</AvatarFallback>
+                </Avatar>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Мой аккаунт</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+
+              <DropdownMenuItem onClick={() => (window.location.hash = "")}>
+                <LayoutDashboard className="mr-2 h-4 w-4" />
+                <span>Календарь</span>
+              </DropdownMenuItem>
+
+              <DropdownMenuItem onClick={() => (window.location.hash = "projects")}>
+                <FolderKanban className="mr-2 h-4 w-4" />
+                <span>Проекты</span>
+              </DropdownMenuItem>
+
+              <DropdownMenuItem onClick={() => (window.location.hash = "settings")}>
+                <Settings className="mr-2 h-4 w-4" />
+                <span>Настройки</span>
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleSignOut}>
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Выйти</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
-
-      {/* Mobile Dropdown Menu */}
-      {mobileMenuOpen && (
-        <div className="md:hidden mt-3 pt-3 border-t border-gray-200">
-          <nav className="flex flex-col space-y-2">
-            {navItems.map((item) => (
-              <Button
-                key={item.id}
-                variant={currentView === item.id ? "default" : "ghost"}
-                size="sm"
-                onClick={() => {
-                  onViewChange(item.id)
-                  setMobileMenuOpen(false)
-                }}
-                className="justify-start"
-              >
-                <item.icon className="h-4 w-4 mr-2" />
-                {item.label}
-              </Button>
-            ))}
-          </nav>
-        </div>
-      )}
     </header>
   )
 }
