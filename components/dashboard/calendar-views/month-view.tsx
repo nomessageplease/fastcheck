@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import type { Task, Project, Executor } from "@/lib/supabase/types"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -20,6 +20,9 @@ export function MonthView({ tasks, projects, executors, onTasksChange }: MonthVi
   const [currentDate, setCurrentDate] = useState(new Date())
   const [taskDialogOpen, setTaskDialogOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+  const [zoomedDate, setZoomedDate] = useState<Date | null>(null)
+  const [isZooming, setIsZooming] = useState(false)
+  const [touchTimer, setTouchTimer] = useState<NodeJS.Timeout | null>(null)
 
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth()
@@ -97,6 +100,48 @@ export function MonthView({ tasks, projects, executors, onTasksChange }: MonthVi
     }
   }
 
+  const handleTouchStart = (date: Date) => {
+    const timer = setTimeout(() => {
+      setZoomedDate(date)
+      setIsZooming(true)
+      // Добавляем вибрацию для обратной связи
+      if (navigator.vibrate) {
+        navigator.vibrate(50)
+      }
+    }, 500) // 500ms для активации zoom
+    setTouchTimer(timer)
+  }
+
+  const handleTouchEnd = () => {
+    if (touchTimer) {
+      clearTimeout(touchTimer)
+      setTouchTimer(null)
+    }
+    if (isZooming) {
+      setTimeout(() => {
+        setIsZooming(false)
+        setZoomedDate(null)
+      }, 100) // Небольшая задержка для плавности
+    }
+  }
+
+  const handleTouchCancel = () => {
+    if (touchTimer) {
+      clearTimeout(touchTimer)
+      setTouchTimer(null)
+    }
+    setIsZooming(false)
+    setZoomedDate(null)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (touchTimer) {
+        clearTimeout(touchTimer)
+      }
+    }
+  }, [touchTimer])
+
   return (
     <div>
       {/* Заголовок календаря */}
@@ -138,48 +183,113 @@ export function MonthView({ tasks, projects, executors, onTasksChange }: MonthVi
             <Card
               key={index}
               className={cn(
-                "min-h-[80px] lg:min-h-[120px] cursor-pointer transition-colors hover:bg-gray-50",
+                "min-h-[60px] sm:min-h-[80px] lg:min-h-[120px] cursor-pointer transition-all duration-300 hover:bg-gray-50",
                 !day.isCurrentMonth && "bg-gray-50 opacity-50",
                 isToday && "ring-2 ring-blue-500",
+                zoomedDate &&
+                  isSameDay(day.date, zoomedDate) &&
+                  isZooming &&
+                  "fixed inset-4 z-50 min-h-[60vh] shadow-2xl ring-4 ring-blue-500 bg-white",
               )}
-              onClick={() => handleDateClick(day.date)}
+              onTouchStart={() => handleTouchStart(day.date)}
+              onTouchEnd={handleTouchEnd}
+              onTouchCancel={handleTouchCancel}
+              onClick={() => !isZooming && handleDateClick(day.date)}
+              style={{
+                transform: zoomedDate && isSameDay(day.date, zoomedDate) && isZooming ? "scale(1)" : "scale(1)",
+                zIndex: zoomedDate && isSameDay(day.date, zoomedDate) && isZooming ? 9999 : "auto",
+              }}
             >
-              <CardContent className="p-1 lg:p-2">
+              <CardContent
+                className={cn(
+                  "p-1 sm:p-2",
+                  zoomedDate && isSameDay(day.date, zoomedDate) && isZooming && "p-6 overflow-y-auto",
+                )}
+              >
                 <div
                   className={cn(
-                    "text-xs lg:text-sm mb-1 lg:mb-2",
+                    "text-xs sm:text-sm mb-1",
                     !day.isCurrentMonth && "text-gray-400",
                     isToday && "font-bold",
+                    zoomedDate && isSameDay(day.date, zoomedDate) && isZooming && "text-2xl font-bold mb-4 text-center",
                   )}
                 >
-                  {day.date.getDate()}
+                  {zoomedDate && isSameDay(day.date, zoomedDate) && isZooming
+                    ? day.date.toLocaleDateString("ru-RU", { weekday: "long", day: "numeric", month: "long" })
+                    : day.date.getDate()}
                 </div>
-                <div className="space-y-0.5 lg:space-y-1 max-h-[50px] lg:max-h-[80px] overflow-y-auto">
-                  {dayTasks.slice(0, 2).map((task) => {
-                    const project = projects.find((p) => p.id === task.project_id)
-                    return (
-                      <div
-                        key={task.id}
-                        className={cn(
-                          "text-[10px] lg:text-xs p-0.5 lg:p-1 rounded border-l-2 truncate flex items-center gap-1",
-                          getStatusColor(task.status),
-                        )}
-                        style={{ borderLeftColor: project?.color_icon }}
-                        title={task.title}
-                      >
-                        <span className="flex-1 truncate">{task.title}</span>
-                        {task.is_urgent && (
-                          <span className="text-[8px] lg:text-[10px] bg-gray-200 text-gray-800 px-1 rounded border border-gray-400 flex-shrink-0">
-                            !
+
+                <div
+                  className={cn(
+                    "space-y-0.5 max-h-[30px] sm:max-h-[50px] lg:max-h-[80px] overflow-y-auto",
+                    zoomedDate && isSameDay(day.date, zoomedDate) && isZooming && "max-h-none space-y-3",
+                  )}
+                >
+                  {dayTasks
+                    .slice(0, zoomedDate && isSameDay(day.date, zoomedDate) && isZooming ? dayTasks.length : 2)
+                    .map((task) => {
+                      const project = projects.find((p) => p.id === task.project_id)
+                      return (
+                        <div
+                          key={task.id}
+                          className={cn(
+                            "text-[8px] sm:text-[10px] lg:text-xs p-0.5 rounded border-l-2 truncate flex items-center gap-1",
+                            getStatusColor(task.status),
+                            zoomedDate &&
+                              isSameDay(day.date, zoomedDate) &&
+                              isZooming &&
+                              "text-sm p-3 rounded-lg shadow-sm",
+                          )}
+                          style={{ borderLeftColor: project?.color_icon }}
+                          title={task.title}
+                        >
+                          <span
+                            className={cn(
+                              "flex-1 truncate",
+                              zoomedDate && isSameDay(day.date, zoomedDate) && isZooming && "truncate-none font-medium",
+                            )}
+                          >
+                            {task.title}
                           </span>
-                        )}
-                      </div>
-                    )
-                  })}
-                  {dayTasks.length > 2 && (
-                    <div className="text-[10px] lg:text-xs text-gray-500 text-center">+{dayTasks.length - 2} еще</div>
+                          {task.is_urgent && (
+                            <span
+                              className={cn(
+                                "text-[6px] sm:text-[8px] lg:text-[10px] bg-gray-200 text-gray-800 px-0.5 rounded border border-gray-400 flex-shrink-0",
+                                zoomedDate && isSameDay(day.date, zoomedDate) && isZooming && "text-xs px-2 py-1",
+                              )}
+                            >
+                              !
+                            </span>
+                          )}
+                          {zoomedDate && isSameDay(day.date, zoomedDate) && isZooming && task.description && (
+                            <div className="text-xs text-gray-500 mt-1">{task.description}</div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  {dayTasks.length > 2 && !(zoomedDate && isSameDay(day.date, zoomedDate) && isZooming) && (
+                    <div className="text-[8px] sm:text-[10px] lg:text-xs text-gray-500 text-center">
+                      +{dayTasks.length - 2} еще
+                    </div>
                   )}
                 </div>
+
+                {zoomedDate && isSameDay(day.date, zoomedDate) && isZooming && (
+                  <div className="mt-4 text-center">
+                    <div className="text-xs text-gray-500 mb-2">Отпустите для возврата к календарю</div>
+                    <Button
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDateClick(day.date)
+                      }}
+                      className="w-full"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Добавить задачу
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )
@@ -193,6 +303,15 @@ export function MonthView({ tasks, projects, executors, onTasksChange }: MonthVi
         projects={projects}
         executors={executors}
       />
+      {isZooming && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-40"
+          onClick={() => {
+            setIsZooming(false)
+            setZoomedDate(null)
+          }}
+        />
+      )}
     </div>
   )
 }
