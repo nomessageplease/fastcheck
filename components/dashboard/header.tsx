@@ -1,92 +1,99 @@
 "use client"
 
-import type { User } from "@supabase/supabase-js"
-import { supabase } from "@/lib/supabase/client"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { Bell, Calendar, Settings, User, Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Settings, LogOut, LayoutDashboard, FolderKanban } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { Badge } from "@/components/ui/badge"
+import { useState } from "react"
 
 interface HeaderProps {
-  user: User | null
-  currentPage: "dashboard" | "settings" | "projects"
-  loadData: () => void
+  activeTab: string
+  onTabChange: (tab: string) => void
+  notificationCount?: number
 }
 
-export function Header({ user, currentPage, loadData }: HeaderProps) {
-  const router = useRouter()
+export function Header({ activeTab, onTabChange, notificationCount = 0 }: HeaderProps) {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    router.refresh()
-  }
-
-  const getInitials = (email: string) => {
-    return email.substring(0, 2).toUpperCase()
-  }
+  const tabs = [
+    { id: "dashboard", label: "Панель", shortLabel: "Панель", icon: Calendar },
+    { id: "projects", label: "Проекты", shortLabel: "Проекты", icon: Calendar },
+    { id: "settings", label: "Настройки", shortLabel: "Настройки", icon: Settings },
+  ]
 
   return (
-    <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-      <div className="container mx-auto px-4 py-3 flex justify-between items-center">
-        <div className="flex items-center space-x-4">
-          <Button
-            variant="ghost"
-            onClick={() => (window.location.hash = "")}
-            className="text-xl font-bold hover:bg-gray-100 p-2"
-          >
-            FastCheck
-          </Button>
-        </div>
+    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container mx-auto px-3 sm:px-4">
+        <div className="flex h-14 sm:h-16 items-center justify-between">
+          {/* Logo */}
+          <div className="flex items-center space-x-2">
+            <h1 className="text-lg sm:text-xl font-bold text-primary">FastCheck</h1>
+          </div>
 
-        <div className="flex items-center space-x-4">
-          <Button variant="ghost" onClick={() => (window.location.hash = "projects")} className="text-sm font-medium">
-            Проекты
-          </Button>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={user?.user_metadata?.avatar_url || "/placeholder.svg"} />
-                  <AvatarFallback>{user?.email ? getInitials(user.email) : "U"}</AvatarFallback>
-                </Avatar>
+          {/* Desktop Navigation */}
+          <nav className="hidden md:flex items-center space-x-1">
+            {tabs.map((tab) => (
+              <Button
+                key={tab.id}
+                variant={activeTab === tab.id ? "default" : "ghost"}
+                size="sm"
+                onClick={() => onTabChange(tab.id)}
+                className="h-9"
+              >
+                <tab.icon className="w-4 h-4 mr-2" />
+                {tab.label}
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Мой аккаунт</DropdownMenuLabel>
-              <DropdownMenuSeparator />
+            ))}
+          </nav>
 
-              <DropdownMenuItem onClick={() => (window.location.hash = "")}>
-                <LayoutDashboard className="mr-2 h-4 w-4" />
-                <span>Календарь</span>
-              </DropdownMenuItem>
+          {/* Mobile Navigation Toggle */}
+          <div className="flex items-center space-x-2 md:hidden">
+            <Button variant="ghost" size="sm" className="relative p-2">
+              <Bell className="w-4 h-4" />
+              {notificationCount > 0 && (
+                <Badge className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 text-xs">{notificationCount}</Badge>
+              )}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2">
+              {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            </Button>
+          </div>
 
-              <DropdownMenuItem onClick={() => (window.location.hash = "projects")}>
-                <FolderKanban className="mr-2 h-4 w-4" />
-                <span>Проекты</span>
-              </DropdownMenuItem>
-
-              <DropdownMenuItem onClick={() => (window.location.hash = "settings")}>
-                <Settings className="mr-2 h-4 w-4" />
-                <span>Настройки</span>
-              </DropdownMenuItem>
-
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleSignOut}>
-                <LogOut className="mr-2 h-4 w-4" />
-                <span>Выйти</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* Desktop Actions */}
+          <div className="hidden md:flex items-center space-x-2">
+            <Button variant="ghost" size="sm" className="relative">
+              <Bell className="w-4 h-4" />
+              {notificationCount > 0 && (
+                <Badge className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 text-xs">{notificationCount}</Badge>
+              )}
+            </Button>
+            <Button variant="ghost" size="sm">
+              <User className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
+
+        {/* Mobile Navigation Menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t bg-background">
+            <nav className="py-2 space-y-1">
+              {tabs.map((tab) => (
+                <Button
+                  key={tab.id}
+                  variant={activeTab === tab.id ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => {
+                    onTabChange(tab.id)
+                    setMobileMenuOpen(false)
+                  }}
+                  className="w-full justify-start h-10"
+                >
+                  <tab.icon className="w-4 h-4 mr-3" />
+                  {tab.label}
+                </Button>
+              ))}
+            </nav>
+          </div>
+        )}
       </div>
     </header>
   )

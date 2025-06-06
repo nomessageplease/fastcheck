@@ -229,56 +229,64 @@ export function ProjectsPage({ user, projects, executors, onDataChange }: Projec
     const isExpanded = expandedTasks.has(task.id)
 
     return (
-      <div className={`${level > 0 ? "ml-6 border-l-2 border-gray-200 pl-4" : ""}`}>
-        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg mb-2">
-          <div className="flex items-center gap-3 flex-1">
+      <div className={`${level > 0 ? "ml-4 sm:ml-6 border-l-2 border-gray-200 pl-3 sm:pl-4" : ""}`}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-gray-50 rounded-lg mb-2 gap-3">
+          <div className="flex items-start gap-3 flex-1 min-w-0">
             {hasSubtasks && (
-              <Button variant="ghost" size="sm" onClick={() => toggleTask(task.id)} className="p-1 h-6 w-6">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => toggleTask(task.id)}
+                className="p-1 h-6 w-6 flex-shrink-0"
+              >
                 {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
               </Button>
             )}
-            {!hasSubtasks && <div className="w-6" />}
+            {!hasSubtasks && <div className="w-6 flex-shrink-0" />}
 
-            <div className="flex-1">
-              <div className="font-medium text-sm">{task.title}</div>
-              {task.description && <div className="text-xs text-gray-600 mt-1">{task.description}</div>}
-              <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+            <div className="flex-1 min-w-0">
+              <h4 className="font-medium text-sm leading-tight truncate">{task.title}</h4>
+              {task.description && <p className="text-xs text-gray-600 mt-1 line-clamp-2">{task.description}</p>}
+              <div className="flex flex-wrap gap-2 sm:gap-4 mt-2 text-xs text-gray-500">
                 <div className="flex items-center gap-1">
-                  <Calendar className="h-3 w-3" />
-                  {formatDate(task.start_date)} - {formatDate(task.due_date)}
+                  <Calendar className="h-3 w-3 flex-shrink-0" />
+                  <span className="truncate">
+                    {formatDate(task.start_date)} - {formatDate(task.due_date)}
+                  </span>
                 </div>
                 {task.executor && (
                   <div className="flex items-center gap-1">
-                    <User className="h-3 w-3" />
-                    {task.executor.name}
+                    <User className="h-3 w-3 flex-shrink-0" />
+                    <span className="truncate">{task.executor.name}</span>
                   </div>
                 )}
                 {task.is_urgent && (
                   <div className="flex items-center gap-1 text-red-500">
-                    <Clock className="h-3 w-3" />
-                    Срочно
+                    <Clock className="h-3 w-3 flex-shrink-0" />
+                    <span>Срочно</span>
                   </div>
                 )}
               </div>
             </div>
+          </div>
 
-            <div className="flex items-center gap-2">
-              {getStatusBadge(task.status)}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={(e) => handleCreateTask(e, project, task)}
-                className="h-7 px-2 text-xs"
-              >
-                <Plus className="h-3 w-3 mr-1" />
-                Подзадача
-              </Button>
-            </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {getStatusBadge(task.status)}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => handleCreateTask(e, project, task)}
+              className="h-7 px-2 text-xs whitespace-nowrap"
+            >
+              <Plus className="h-3 w-3 mr-1" />
+              <span className="hidden sm:inline">Подзадача</span>
+              <span className="sm:hidden">+</span>
+            </Button>
           </div>
         </div>
 
         {hasSubtasks && isExpanded && (
-          <div className="ml-4 space-y-1">
+          <div className="ml-2 sm:ml-4 space-y-1">
             {subtasks.map((subtask) => (
               <TaskItem key={subtask.id} task={subtask} tasks={tasks} level={level + 1} project={project} />
             ))}
@@ -305,44 +313,46 @@ export function ProjectsPage({ user, projects, executors, onDataChange }: Projec
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Проекты</h1>
-          <p className="text-muted-foreground">Управление проектами и их настройками</p>
+      <div className="flex flex-col space-y-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold">Проекты</h1>
+            <p className="text-sm text-muted-foreground">Управление проектами и их настройками</p>
+          </div>
+
+          <Button
+            onClick={() => {
+              setSelectedProject(null)
+              setProjectDialogOpen(true)
+            }}
+            className="w-full sm:w-auto flex items-center gap-2 h-10"
+          >
+            <Plus className="h-4 w-4" />
+            Новый проект
+          </Button>
         </div>
 
-        <Button
-          onClick={() => {
-            setSelectedProject(null)
-            setProjectDialogOpen(true)
-          }}
-          className="flex items-center gap-2"
-        >
-          <Plus className="h-4 w-4" />
-          Новый проект
-        </Button>
-      </div>
-
-      <div className="max-w-md">
-        <Input
-          placeholder="Поиск проектов..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="mb-4"
-        />
+        <div className="w-full sm:max-w-md">
+          <Input
+            placeholder="Поиск проектов..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="h-10"
+          />
+        </div>
       </div>
 
       {filteredProjects.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-muted-foreground">{searchTerm ? "Проекты не найдены" : "У вас пока нет проектов"}</p>
+          <p className="text-muted-foreground mb-4">{searchTerm ? "Проекты не найдены" : "У вас пока нет проектов"}</p>
           {!searchTerm && (
             <Button
               variant="outline"
-              className="mt-4"
               onClick={() => {
                 setSelectedProject(null)
                 setProjectDialogOpen(true)
               }}
+              className="h-10"
             >
               Создать первый проект
             </Button>
@@ -359,52 +369,63 @@ export function ProjectsPage({ user, projects, executors, onDataChange }: Projec
             return (
               <Card key={project.id}>
                 <Collapsible open={isExpanded} onOpenChange={() => toggleProject(project.id)}>
-                  <CardHeader className="cursor-pointer" onClick={() => toggleProject(project.id)}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
+                  <CardHeader className="cursor-pointer pb-3" onClick={() => toggleProject(project.id)}>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <div className="p-1 h-6 w-6 flex items-center justify-center">
+                          <div className="p-1 h-6 w-6 flex items-center justify-center flex-shrink-0">
                             {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                           </div>
-                          <CardTitle className="text-lg">{project.name}</CardTitle>
+                          <CardTitle className="text-base sm:text-lg truncate">{project.name}</CardTitle>
                         </div>
-                        <CardDescription className="mt-1 ml-8">{project.description}</CardDescription>
+                        {project.description && (
+                          <CardDescription className="mt-1 ml-8 text-sm line-clamp-2">
+                            {project.description}
+                          </CardDescription>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Button variant="outline" size="icon" onClick={(e) => handleEditProject(e, project)}>
-                          <Edit className="h-4 w-4" />
+                      <div className="flex flex-col sm:flex-row gap-2 ml-2 flex-shrink-0">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={(e) => handleEditProject(e, project)}
+                          className="h-8 w-8"
+                        >
+                          <Edit className="h-3 w-3" />
                         </Button>
                         <Button
                           variant="outline"
                           size="icon"
-                          className="text-destructive"
+                          className="h-8 w-8 text-destructive"
                           onClick={(e) => handleDeleteProject(e, project)}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-3 w-3" />
                         </Button>
                       </div>
                     </div>
                   </CardHeader>
 
-                  <CardContent>
-                    <div className="text-sm mb-4 ml-8">
-                      <p>
-                        <strong>Дата начала:</strong> {formatDate(project.start_date)}
+                  <CardContent className="pt-0">
+                    <div className="text-sm mb-4 ml-8 space-y-1">
+                      <p className="flex flex-col sm:flex-row sm:items-center">
+                        <span className="font-medium mr-2">Дата начала:</span>
+                        <span>{formatDate(project.start_date)}</span>
                       </p>
-                      <p>
-                        <strong>Дата окончания:</strong> {formatDate(project.planned_finish)}
+                      <p className="flex flex-col sm:flex-row sm:items-center">
+                        <span className="font-medium mr-2">Дата окончания:</span>
+                        <span>{formatDate(project.planned_finish)}</span>
                       </p>
                     </div>
 
                     <CollapsibleContent>
                       <div className="border-t pt-4">
-                        <div className="flex items-center justify-between mb-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-3">
                           <h4 className="font-medium">Задачи проекта</h4>
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={(e) => handleCreateTask(e, project)}
-                            className="flex items-center gap-2"
+                            className="w-full sm:w-auto flex items-center gap-2 h-9"
                           >
                             <Plus className="h-4 w-4" />
                             Создать задачу
@@ -419,7 +440,7 @@ export function ProjectsPage({ user, projects, executors, onDataChange }: Projec
                               variant="outline"
                               size="sm"
                               onClick={(e) => handleCreateTask(e, project)}
-                              className="flex items-center gap-2"
+                              className="flex items-center gap-2 h-9"
                             >
                               <Plus className="h-4 w-4" />
                               Создать первую задачу

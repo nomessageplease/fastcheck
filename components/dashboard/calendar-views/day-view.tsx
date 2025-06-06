@@ -225,72 +225,93 @@ export function DayView({ tasks, projects, executors, user, onTasksChange }: Day
         className={cn("mb-3 cursor-pointer transition-all hover:shadow-md", needsReview && "ring-2 ring-yellow-300")}
         onClick={() => (needsReview ? handleReviewTask(task) : undefined)}
       >
-        <CardContent className="p-4">
-          <div className="flex items-start justify-between">
-            <div className="flex items-start space-x-3 flex-1">
-              {getStatusIcon(task.status)}
-              <div className="flex-1">
-                <div className="flex items-center space-x-2 flex-wrap">
-                  <h3 className="font-medium">{task.title}</h3>
-                  {task.is_urgent && (
-                    <Badge variant="outline" className="text-gray-900 border-gray-400">
-                      Срочно
-                    </Badge>
-                  )}
-                  {needsReview && (
-                    <Badge variant="outline" className="text-yellow-600 border-yellow-600">
-                      Требует проверки
-                    </Badge>
-                  )}
-                </div>
-                {task.description && <p className="text-sm text-gray-500 mt-1">{task.description}</p>}
-                <div className="flex flex-wrap gap-4 mt-2">
-                  {project && (
-                    <div className="flex items-center text-xs text-gray-500">
-                      <div className="w-2 h-2 rounded-full mr-1" style={{ backgroundColor: project.color_icon }} />
-                      <span>{project.name}</span>
-                    </div>
-                  )}
-                  {executor && (
-                    <div className="flex items-center text-xs text-gray-500">
-                      <div className="w-2 h-2 rounded-full mr-1" style={{ backgroundColor: executor.color_icon }} />
-                      <span>{executor.name}</span>
-                    </div>
-                  )}
-                  {task.status === "in_progress" && !task.executor_id && (
-                    <div className="flex items-center text-xs font-medium text-blue-600">
-                      <Clock className="w-3 h-3 mr-1" />
-                      <span>Осталось: {getTimeRemaining(task.due_date)}</span>
-                    </div>
-                  )}
-                  <div className="text-xs text-gray-500">
-                    {new Date(task.start_date).toLocaleDateString("ru-RU")}{" "}
-                    {new Date(task.start_date).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })} -{" "}
-                    {new Date(task.due_date).toLocaleDateString("ru-RU")}{" "}
-                    {new Date(task.due_date).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}
+        <CardContent className="p-3 sm:p-4">
+          <div className="space-y-3">
+            {/* Заголовок и статус */}
+            <div className="flex items-start justify-between">
+              <div className="flex items-start space-x-2 flex-1 min-w-0">
+                {getStatusIcon(task.status)}
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-medium text-sm sm:text-base leading-tight">{task.title}</h3>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {task.is_urgent && (
+                      <Badge variant="outline" className="text-xs border-gray-400">
+                        Срочно
+                      </Badge>
+                    )}
+                    {needsReview && (
+                      <Badge variant="outline" className="text-xs text-yellow-600 border-yellow-600">
+                        Требует проверки
+                      </Badge>
+                    )}
                   </div>
                 </div>
               </div>
-            </div>
-            <div className="flex space-x-1" onClick={(e) => e.stopPropagation()}>
-              {needsReview && (
-                <Button variant="ghost" size="icon" onClick={() => handleReviewTask(task)} title="Проверить задачу">
-                  <Eye className="h-4 w-4 text-yellow-600" />
+
+              {/* Кнопки действий */}
+              <div className="flex space-x-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                {needsReview && (
+                  <Button variant="ghost" size="icon" onClick={() => handleReviewTask(task)} className="h-8 w-8">
+                    <Eye className="h-3 w-3 text-yellow-600" />
+                  </Button>
+                )}
+                <Button variant="ghost" size="icon" onClick={() => handleEditTask(task)} className="h-8 w-8">
+                  <Edit className="h-3 w-3" />
                 </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setTaskToDelete(task)
+                    setDeleteDialogOpen(true)
+                  }}
+                  className="h-8 w-8"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Описание */}
+            {task.description && <p className="text-xs sm:text-sm text-gray-500 line-clamp-2">{task.description}</p>}
+
+            {/* Метаинформация */}
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-2 text-xs text-gray-500">
+                {project && (
+                  <div className="flex items-center">
+                    <div className="w-2 h-2 rounded-full mr-1" style={{ backgroundColor: project.color_icon }} />
+                    <span className="truncate max-w-[120px]">{project.name}</span>
+                  </div>
+                )}
+                {executor && (
+                  <div className="flex items-center">
+                    <div className="w-2 h-2 rounded-full mr-1" style={{ backgroundColor: executor.color_icon }} />
+                    <span className="truncate max-w-[120px]">{executor.name}</span>
+                  </div>
+                )}
+              </div>
+
+              {task.status === "in_progress" && !task.executor_id && (
+                <div className="flex items-center text-xs font-medium text-blue-600">
+                  <Clock className="w-3 h-3 mr-1" />
+                  <span>Осталось: {getTimeRemaining(task.due_date)}</span>
+                </div>
               )}
-              <Button variant="ghost" size="icon" onClick={() => handleEditTask(task)}>
-                <Edit className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  setTaskToDelete(task)
-                  setDeleteDialogOpen(true)
-                }}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+
+              <div className="text-xs text-gray-500">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-1 sm:space-y-0">
+                  <span>
+                    {new Date(task.start_date).toLocaleDateString("ru-RU")}{" "}
+                    {new Date(task.start_date).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                  <span className="hidden sm:inline">—</span>
+                  <span>
+                    {new Date(task.due_date).toLocaleDateString("ru-RU")}{" "}
+                    {new Date(task.due_date).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -322,32 +343,38 @@ export function DayView({ tasks, projects, executors, user, onTasksChange }: Day
   return (
     <div>
       {/* Заголовок дня */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-4 lg:mb-6 space-y-4 lg:space-y-0">
-        <div className="flex items-center space-x-2 lg:space-x-4">
-          <Button variant="outline" size="icon" onClick={navigatePrev} className="h-8 w-8 lg:h-10 lg:w-10">
-            <span className="text-lg">←</span>
-          </Button>
-          <h2 className="text-lg lg:text-xl font-semibold">{getDayName()}</h2>
-          <Button variant="outline" size="icon" onClick={navigateNext} className="h-8 w-8 lg:h-10 lg:w-10">
-            <span className="text-lg">→</span>
-          </Button>
-          <Button variant="outline" size="sm" onClick={navigateToday} className="text-xs lg:text-sm">
-            Сегодня
-          </Button>
+      <div className="flex flex-col space-y-4 mb-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Button variant="outline" size="icon" onClick={navigatePrev} className="h-8 w-8 flex-shrink-0">
+              <span className="text-lg">←</span>
+            </Button>
+            <Button variant="outline" size="icon" onClick={navigateNext} className="h-8 w-8 flex-shrink-0">
+              <span className="text-lg">→</span>
+            </Button>
+            <Button variant="outline" size="sm" onClick={navigateToday} className="text-xs px-2 h-8">
+              Сегодня
+            </Button>
+          </div>
         </div>
-        <div className="flex space-x-2">
+
+        <div className="text-center">
+          <h2 className="text-lg sm:text-xl font-semibold leading-tight">{getDayName()}</h2>
+        </div>
+
+        <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
           {tasksByStatus.pending_review.length > 0 && (
             <Button
               variant="outline"
               size="sm"
               onClick={() => setReviewDialogOpen(true)}
-              className="border-yellow-300 text-yellow-700 hover:bg-yellow-50"
+              className="border-yellow-300 text-yellow-700 hover:bg-yellow-50 h-10"
             >
               <Eye className="h-4 w-4 mr-2" />
               Проверить все ({tasksByStatus.pending_review.length})
             </Button>
           )}
-          <Button onClick={() => setTaskDialogOpen(true)} size="sm" className="w-full lg:w-auto">
+          <Button onClick={() => setTaskDialogOpen(true)} size="sm" className="h-10">
             <Plus className="h-4 w-4 mr-2" />
             Новая задача
           </Button>

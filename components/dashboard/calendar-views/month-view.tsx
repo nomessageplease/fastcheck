@@ -100,36 +100,42 @@ export function MonthView({ tasks, projects, executors, onTasksChange }: MonthVi
   return (
     <div>
       {/* Заголовок календаря */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-4 lg:mb-6 space-y-4 lg:space-y-0">
-        <div className="flex items-center space-x-2 lg:space-x-4">
-          <Button variant="outline" size="icon" onClick={navigatePrev} className="h-8 w-8 lg:h-10 lg:w-10">
-            <ChevronLeft className="h-3 w-3 lg:h-4 lg:w-4" />
-          </Button>
-          <h2 className="text-lg lg:text-xl font-semibold">{getMonthName()}</h2>
-          <Button variant="outline" size="icon" onClick={navigateNext} className="h-8 w-8 lg:h-10 lg:w-10">
-            <ChevronRight className="h-3 w-3 lg:h-4 lg:w-4" />
-          </Button>
-          <Button variant="outline" size="sm" onClick={navigateToday} className="text-xs lg:text-sm">
-            Сегодня
+      <div className="flex flex-col space-y-4 mb-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Button variant="outline" size="icon" onClick={navigatePrev} className="h-8 w-8">
+              <ChevronLeft className="h-3 w-3" />
+            </Button>
+            <Button variant="outline" size="icon" onClick={navigateNext} className="h-8 w-8">
+              <ChevronRight className="h-3 w-3" />
+            </Button>
+            <Button variant="outline" size="sm" onClick={navigateToday} className="text-xs px-2 h-8">
+              Сегодня
+            </Button>
+          </div>
+          <Button onClick={() => setTaskDialogOpen(true)} size="sm" className="h-8 px-3">
+            <Plus className="h-3 w-3 mr-1" />
+            <span className="hidden xs:inline">Новая задача</span>
+            <span className="xs:hidden">Новая</span>
           </Button>
         </div>
-        <Button onClick={() => setTaskDialogOpen(true)} size="sm" className="w-full lg:w-auto">
-          <Plus className="h-4 w-4 mr-2" />
-          <span className="lg:inline">Новая задача</span>
-        </Button>
+
+        <div className="text-center">
+          <h2 className="text-lg sm:text-xl font-semibold">{getMonthName()}</h2>
+        </div>
       </div>
 
       {/* Заголовки дней недели */}
-      <div className="grid grid-cols-7 gap-1 mb-2">
+      <div className="grid grid-cols-7 gap-0.5 mb-2">
         {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((day) => (
-          <div key={day} className="text-center py-2 text-sm font-medium text-gray-500">
+          <div key={day} className="text-center py-2 text-xs sm:text-sm font-medium text-gray-500">
             {day}
           </div>
         ))}
       </div>
 
       {/* Календарная сетка */}
-      <div className="grid grid-cols-7 gap-0.5 lg:gap-1">
+      <div className="grid grid-cols-7 gap-0.5">
         {calendarDays.map((day, index) => {
           const dayTasks = getTasksForDate(tasks, day.date)
           const isToday = isSameDay(day.date, today)
@@ -138,30 +144,30 @@ export function MonthView({ tasks, projects, executors, onTasksChange }: MonthVi
             <Card
               key={index}
               className={cn(
-                "min-h-[80px] lg:min-h-[120px] cursor-pointer transition-colors hover:bg-gray-50",
+                "min-h-[60px] sm:min-h-[80px] lg:min-h-[120px] cursor-pointer transition-colors hover:bg-gray-50",
                 !day.isCurrentMonth && "bg-gray-50 opacity-50",
                 isToday && "ring-2 ring-blue-500",
               )}
               onClick={() => handleDateClick(day.date)}
             >
-              <CardContent className="p-1 lg:p-2">
+              <CardContent className="p-1 sm:p-2">
                 <div
                   className={cn(
-                    "text-xs lg:text-sm mb-1 lg:mb-2",
+                    "text-xs sm:text-sm mb-1",
                     !day.isCurrentMonth && "text-gray-400",
                     isToday && "font-bold",
                   )}
                 >
                   {day.date.getDate()}
                 </div>
-                <div className="space-y-0.5 lg:space-y-1 max-h-[50px] lg:max-h-[80px] overflow-y-auto">
+                <div className="space-y-0.5 max-h-[30px] sm:max-h-[50px] lg:max-h-[80px] overflow-y-auto">
                   {dayTasks.slice(0, 2).map((task) => {
                     const project = projects.find((p) => p.id === task.project_id)
                     return (
                       <div
                         key={task.id}
                         className={cn(
-                          "text-[10px] lg:text-xs p-0.5 lg:p-1 rounded border-l-2 truncate flex items-center gap-1",
+                          "text-[8px] sm:text-[10px] lg:text-xs p-0.5 rounded border-l-2 truncate flex items-center gap-1",
                           getStatusColor(task.status),
                         )}
                         style={{ borderLeftColor: project?.color_icon }}
@@ -169,7 +175,7 @@ export function MonthView({ tasks, projects, executors, onTasksChange }: MonthVi
                       >
                         <span className="flex-1 truncate">{task.title}</span>
                         {task.is_urgent && (
-                          <span className="text-[8px] lg:text-[10px] bg-gray-200 text-gray-800 px-1 rounded border border-gray-400 flex-shrink-0">
+                          <span className="text-[6px] sm:text-[8px] lg:text-[10px] bg-gray-200 text-gray-800 px-0.5 rounded border border-gray-400 flex-shrink-0">
                             !
                           </span>
                         )}
@@ -177,7 +183,9 @@ export function MonthView({ tasks, projects, executors, onTasksChange }: MonthVi
                     )
                   })}
                   {dayTasks.length > 2 && (
-                    <div className="text-[10px] lg:text-xs text-gray-500 text-center">+{dayTasks.length - 2} еще</div>
+                    <div className="text-[8px] sm:text-[10px] lg:text-xs text-gray-500 text-center">
+                      +{dayTasks.length - 2} еще
+                    </div>
                   )}
                 </div>
               </CardContent>
