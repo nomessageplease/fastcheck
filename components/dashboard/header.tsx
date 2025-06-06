@@ -1,100 +1,90 @@
 "use client"
 
-import { Bell, Calendar, Settings, User, Menu, X } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Calendar, Settings, FolderOpen, Menu, X } from "lucide-react"
 
 interface HeaderProps {
-  activeTab: string
-  onTabChange: (tab: string) => void
-  notificationCount?: number
+  currentView: string
+  onViewChange: (view: string) => void
 }
 
-export function Header({ activeTab, onTabChange, notificationCount = 0 }: HeaderProps) {
+export function Header({ currentView, onViewChange }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
-  const tabs = [
-    { id: "dashboard", label: "Панель", shortLabel: "Панель", icon: Calendar },
-    { id: "projects", label: "Проекты", shortLabel: "Проекты", icon: Calendar },
-    { id: "settings", label: "Настройки", shortLabel: "Настройки", icon: Settings },
+  const navItems = [
+    { id: "dashboard", label: "Главная", icon: Calendar, shortLabel: "Гл." },
+    { id: "projects", label: "Проекты", icon: FolderOpen, shortLabel: "Пр." },
+    { id: "settings", label: "Настройки", icon: Settings, shortLabel: "Н." },
   ]
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto px-3 sm:px-4">
-        <div className="flex h-14 sm:h-16 items-center justify-between">
-          {/* Logo */}
-          <div className="flex items-center space-x-2">
-            <h1 className="text-lg sm:text-xl font-bold text-primary">FastCheck</h1>
-          </div>
+    <header className="bg-white border-b border-gray-200 px-4 py-3 sm:px-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <h1 className="text-lg sm:text-xl font-semibold text-gray-900">FastCheck</h1>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center space-x-1">
-            {tabs.map((tab) => (
+          <nav className="hidden md:flex space-x-1">
+            {navItems.map((item) => (
               <Button
-                key={tab.id}
-                variant={activeTab === tab.id ? "default" : "ghost"}
+                key={item.id}
+                variant={currentView === item.id ? "default" : "ghost"}
                 size="sm"
-                onClick={() => onTabChange(tab.id)}
-                className="h-9"
+                onClick={() => onViewChange(item.id)}
+                className="flex items-center space-x-2"
               >
-                <tab.icon className="w-4 h-4 mr-2" />
-                {tab.label}
+                <item.icon className="h-4 w-4" />
+                <span>{item.label}</span>
               </Button>
             ))}
           </nav>
-
-          {/* Mobile Navigation Toggle */}
-          <div className="flex items-center space-x-2 md:hidden">
-            <Button variant="ghost" size="sm" className="relative p-2">
-              <Bell className="w-4 h-4" />
-              {notificationCount > 0 && (
-                <Badge className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 text-xs">{notificationCount}</Badge>
-              )}
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2">
-              {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-            </Button>
-          </div>
-
-          {/* Desktop Actions */}
-          <div className="hidden md:flex items-center space-x-2">
-            <Button variant="ghost" size="sm" className="relative">
-              <Bell className="w-4 h-4" />
-              {notificationCount > 0 && (
-                <Badge className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 text-xs">{notificationCount}</Badge>
-              )}
-            </Button>
-            <Button variant="ghost" size="sm">
-              <User className="w-4 h-4" />
-            </Button>
-          </div>
         </div>
 
-        {/* Mobile Navigation Menu */}
-        {mobileMenuOpen && (
-          <div className="md:hidden border-t bg-background">
-            <nav className="py-2 space-y-1">
-              {tabs.map((tab) => (
-                <Button
-                  key={tab.id}
-                  variant={activeTab === tab.id ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => {
-                    onTabChange(tab.id)
-                    setMobileMenuOpen(false)
-                  }}
-                  className="w-full justify-start h-10"
-                >
-                  <tab.icon className="w-4 h-4 mr-3" />
-                  {tab.label}
-                </Button>
-              ))}
-            </nav>
-          </div>
-        )}
+        {/* Mobile Menu Button */}
+        <Button variant="ghost" size="sm" className="md:hidden" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+          {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </Button>
+
+        {/* Mobile Navigation Tabs */}
+        <nav className="flex md:hidden space-x-1">
+          {navItems.map((item) => (
+            <Button
+              key={item.id}
+              variant={currentView === item.id ? "default" : "ghost"}
+              size="sm"
+              onClick={() => onViewChange(item.id)}
+              className="flex flex-col items-center space-y-1 px-2 py-1 h-auto min-w-[60px]"
+            >
+              <item.icon className="h-4 w-4" />
+              <span className="text-xs">{item.shortLabel}</span>
+            </Button>
+          ))}
+        </nav>
       </div>
+
+      {/* Mobile Dropdown Menu */}
+      {mobileMenuOpen && (
+        <div className="md:hidden mt-3 pt-3 border-t border-gray-200">
+          <nav className="flex flex-col space-y-2">
+            {navItems.map((item) => (
+              <Button
+                key={item.id}
+                variant={currentView === item.id ? "default" : "ghost"}
+                size="sm"
+                onClick={() => {
+                  onViewChange(item.id)
+                  setMobileMenuOpen(false)
+                }}
+                className="justify-start"
+              >
+                <item.icon className="h-4 w-4 mr-2" />
+                {item.label}
+              </Button>
+            ))}
+          </nav>
+        </div>
+      )}
     </header>
   )
 }
