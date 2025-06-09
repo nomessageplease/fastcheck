@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import type { Task, Project, Executor } from "@/lib/supabase/types"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react"
+import { Plus } from "lucide-react"
 import { getDaysInMonth, getFirstDayOfMonth, getTasksForDate, isSameDay } from "@/lib/date-utils"
 import { TaskDialog } from "../task-dialog"
 import { cn } from "@/lib/utils"
@@ -16,64 +16,148 @@ interface MonthViewProps {
   onTasksChange: () => void
 }
 
+interface MonthData {
+  year: number
+  month: number
+  id: string
+}
+
 export function MonthView({ tasks, projects, executors, onTasksChange }: MonthViewProps) {
-  const [currentDate, setCurrentDate] = useState(new Date())
   const [taskDialogOpen, setTaskDialogOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [zoomedDate, setZoomedDate] = useState<Date | null>(null)
   const [isZooming, setIsZooming] = useState(false)
   const [touchTimer, setTouchTimer] = useState<NodeJS.Timeout | null>(null)
+  const [currentVisibleMonth, setCurrentVisibleMonth] = useState(new Date())
+  const [months, setMonths] = useState<MonthData[]>([])
 
-  const year = currentDate.getFullYear()
-  const month = currentDate.getMonth()
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const monthRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const observerRef = useRef<IntersectionObserver | null>(null)
+
   const today = new Date()
 
-  const daysInMonth = getDaysInMonth(year, month)
-  const firstDayOfMonth = getFirstDayOfMonth(year, month)
+  // Инициализация месяцев
+  useEffect(() => {
+    const currentDate = new Date()
+    const initialMonths: MonthData[] = []
 
-  // Создаем массив дней для отображения в календаре
-  const calendarDays = []
+    // Добавляем 6 месяцев назад, текущий и 12 месяцев вперед
+    for (let i = -6; i <= 12; i++) {
+      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() + i, 1)
+      initialMonths.push({
+        year: date.getFullYear(),
+        month: date.getMonth(),
+        id: `${date.getFullYear()}-${date.getMonth()}`,
+      })
+    }
 
-  // Добавляем дни предыдущего месяца
-  const prevMonthDays = getDaysInMonth(year, month - 1)
-  for (let i = firstDayOfMonth - 1; i > 0; i--) {
-    calendarDays.push({
-      date: new Date(year, month - 1, prevMonthDays - i + 1),
-      isCurrentMonth: false,
+    setMonths(initialMonths)
+  }, [])
+
+  // Intersection Observer для определения видимого месяца
+  useEffect(() => {
+    if (!scrollContainerRef.current) return
+
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && entry.intersectionRatio > 0.5) {
+            const monthId = entry.target.getAttribute("data-month-id")
+            if (monthId) {
+              const [year, month] = monthId.split("-").map(Number)
+              setCurrentVisibleMonth(new Date(year, month, 1))
+            }
+          }
+        })
+      },
+      {
+        root: scrollContainerRef.current,
+        threshold: [0.5],
+        rootMargin: "-20% 0px -20% 0px",
+      },
+    )
+
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect()
+      }
+    }
+  }, [])
+
+  // Подключение наблюдателя к элементам месяцев
+  useEffect(() => {
+    if (!observerRef.current) return
+
+    monthRefs.current.forEach((element) => {
+      observerRef.current?.observe(element)
     })
+
+    return () => {
+      if (observerRef.current) {
+        monthRefs.current.forEach((element) => {
+          observerRef.current?.unobserve(element)
+        })
+      }
+    }
+  }, [months])
+
+  // Бесконечный скролл - добавление месяцев
+  const handleScroll = useCallback(() => {
+    if (!scrollContainerRef.current) return
+
+    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current
+
+    // Добавляем месяцы вперед при приближении к концу
+    if (scrollTop + clientHeight > scrollHeight - 1000) {
+      setMonths((prev) => {
+        const lastMonth = prev[prev.length - 1]
+        const newMonths = []
+
+        for (let i = 1; i <= 3; i++) {
+          const date = new Date(lastMonth.year, lastMonth.month + i, 1)
+          newMonths.push({
+            year: date.getFullYear(),
+            month: date.getMonth(),
+            id: `${date.getFullYear()}-${date.getMonth()}`,
+          })
+        }
+
+        return [...prev, ...newMonths]
+      })
+    }
+
+    // Добавляем месяцы назад при приближении к началу
+    if (scrollTop < 1000) {
+      setMonths((prev) => {
+        const firstMonth = prev[0]
+        const newMonths = []
+
+        for (let i = 3; i >= 1; i--) {
+          const date = new Date(firstMonth.year, firstMonth.month - i, 1)
+          newMonths.push({
+            year: date.getFullYear(),
+            month: date.getMonth(),
+            id: `${date.getFullYear()}-${date.getMonth()}`,
+          })
+        }
+
+        return [...newMonths, ...prev]
+      })
+    }
+  }, [])
+
+  const scrollToToday = () => {
+    const todayId = `${today.getFullYear()}-${today.getMonth()}`
+    const todayElement = monthRefs.current.get(todayId)
+
+    if (todayElement && scrollContainerRef.current) {
+      todayElement.scrollIntoView({ behavior: "smooth", block: "start" })
+    }
   }
 
-  // Добавляем дни текущего месяца
-  for (let day = 1; day <= daysInMonth; day++) {
-    calendarDays.push({
-      date: new Date(year, month, day),
-      isCurrentMonth: true,
-    })
-  }
-
-  // Добавляем дни следующего месяца до заполнения 42 ячеек (6 недель)
-  const remainingDays = 42 - calendarDays.length
-  for (let day = 1; day <= remainingDays; day++) {
-    calendarDays.push({
-      date: new Date(year, month + 1, day),
-      isCurrentMonth: false,
-    })
-  }
-
-  const navigatePrev = () => {
-    setCurrentDate(new Date(year, month - 1, 1))
-  }
-
-  const navigateNext = () => {
-    setCurrentDate(new Date(year, month + 1, 1))
-  }
-
-  const navigateToday = () => {
-    setCurrentDate(new Date())
-  }
-
-  const getMonthName = () => {
-    return currentDate.toLocaleDateString("ru-RU", { month: "long", year: "numeric" })
+  const getMonthName = (year: number, month: number) => {
+    return new Date(year, month, 1).toLocaleDateString("ru-RU", { month: "long", year: "numeric" })
   }
 
   const handleDateClick = (date: Date) => {
@@ -104,11 +188,10 @@ export function MonthView({ tasks, projects, executors, onTasksChange }: MonthVi
     const timer = setTimeout(() => {
       setZoomedDate(date)
       setIsZooming(true)
-      // Добавляем вибрацию для обратной связи
       if (navigator.vibrate) {
         navigator.vibrate(50)
       }
-    }, 500) // 500ms для активации zoom
+    }, 500)
     setTouchTimer(timer)
   }
 
@@ -121,7 +204,7 @@ export function MonthView({ tasks, projects, executors, onTasksChange }: MonthVi
       setTimeout(() => {
         setIsZooming(false)
         setZoomedDate(null)
-      }, 100) // Небольшая задержка для плавности
+      }, 100)
     }
   }
 
@@ -134,6 +217,185 @@ export function MonthView({ tasks, projects, executors, onTasksChange }: MonthVi
     setZoomedDate(null)
   }
 
+  const renderMonth = (monthData: MonthData) => {
+    const { year, month, id } = monthData
+    const daysInMonth = getDaysInMonth(year, month)
+    const firstDayOfMonth = getFirstDayOfMonth(year, month)
+
+    // Создаем массив дней для отображения в календаре
+    const calendarDays = []
+
+    // Добавляем дни предыдущего месяца
+    const prevMonthDays = getDaysInMonth(year, month - 1)
+    for (let i = firstDayOfMonth - 1; i > 0; i--) {
+      calendarDays.push({
+        date: new Date(year, month - 1, prevMonthDays - i + 1),
+        isCurrentMonth: false,
+      })
+    }
+
+    // Добавляем дни текущего месяца
+    for (let day = 1; day <= daysInMonth; day++) {
+      calendarDays.push({
+        date: new Date(year, month, day),
+        isCurrentMonth: true,
+      })
+    }
+
+    // Добавляем дни следующего месяца до заполнения 42 ячеек (6 недель)
+    const remainingDays = 42 - calendarDays.length
+    for (let day = 1; day <= remainingDays; day++) {
+      calendarDays.push({
+        date: new Date(year, month + 1, day),
+        isCurrentMonth: false,
+      })
+    }
+
+    return (
+      <div
+        key={id}
+        ref={(el) => {
+          if (el) {
+            monthRefs.current.set(id, el)
+          }
+        }}
+        data-month-id={id}
+        className="mb-8"
+      >
+        {/* Заголовок месяца */}
+        <div className="mb-4">
+          <h3 className="text-xl font-semibold text-center">{getMonthName(year, month)}</h3>
+        </div>
+
+        {/* Заголовки дней недели */}
+        <div className="grid grid-cols-7 gap-1 mb-2">
+          {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((day) => (
+            <div key={day} className="text-center py-2 text-sm font-medium text-gray-500">
+              {day}
+            </div>
+          ))}
+        </div>
+
+        {/* Календарная сетка */}
+        <div className="grid grid-cols-7 gap-0.5 lg:gap-1">
+          {calendarDays.map((day, index) => {
+            const dayTasks = getTasksForDate(tasks, day.date)
+            const isToday = isSameDay(day.date, today)
+
+            return (
+              <Card
+                key={`${id}-${index}`}
+                className={cn(
+                  "min-h-[60px] sm:min-h-[80px] lg:min-h-[120px] cursor-pointer transition-all duration-300 hover:bg-gray-50",
+                  !day.isCurrentMonth && "bg-gray-50 opacity-50",
+                  isToday && "ring-2 ring-blue-500",
+                  zoomedDate &&
+                    isSameDay(day.date, zoomedDate) &&
+                    isZooming &&
+                    "fixed inset-4 z-50 min-h-[60vh] shadow-2xl ring-4 ring-blue-500 bg-white",
+                )}
+                onTouchStart={() => handleTouchStart(day.date)}
+                onTouchEnd={handleTouchEnd}
+                onTouchCancel={handleTouchCancel}
+                onClick={() => !isZooming && handleDateClick(day.date)}
+                style={{
+                  zIndex: zoomedDate && isSameDay(day.date, zoomedDate) && isZooming ? 9999 : "auto",
+                }}
+              >
+                <CardContent
+                  className={cn(
+                    "p-1 sm:p-2",
+                    zoomedDate && isSameDay(day.date, zoomedDate) && isZooming && "p-6 overflow-y-auto",
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "text-xs sm:text-sm mb-1",
+                      !day.isCurrentMonth && "text-gray-400",
+                      isToday && "font-bold",
+                      zoomedDate &&
+                        isSameDay(day.date, zoomedDate) &&
+                        isZooming &&
+                        "text-2xl font-bold mb-4 text-center",
+                    )}
+                  >
+                    {zoomedDate && isSameDay(day.date, zoomedDate) && isZooming
+                      ? day.date.toLocaleDateString("ru-RU", { weekday: "long", day: "numeric", month: "long" })
+                      : day.date.getDate()}
+                  </div>
+
+                  <div
+                    className={cn(
+                      "space-y-0.5 max-h-[30px] sm:max-h-[50px] lg:max-h-[80px] overflow-y-auto",
+                      zoomedDate && isSameDay(day.date, zoomedDate) && isZooming && "max-h-none space-y-3",
+                    )}
+                  >
+                    {dayTasks
+                      .slice(0, zoomedDate && isSameDay(day.date, zoomedDate) && isZooming ? dayTasks.length : 2)
+                      .map((task) => {
+                        const project = projects.find((p) => p.id === task.project_id)
+                        return (
+                          <div
+                            key={task.id}
+                            className={cn(
+                              "text-[8px] sm:text-[10px] lg:text-xs p-0.5 rounded border-l-2 truncate flex items-center gap-1",
+                              getStatusColor(task.status),
+                              zoomedDate &&
+                                isSameDay(day.date, zoomedDate) &&
+                                isZooming &&
+                                "text-sm p-3 rounded-lg shadow-sm",
+                            )}
+                            style={{ borderLeftColor: project?.color_icon }}
+                            title={task.title}
+                          >
+                            <span
+                              className={cn(
+                                "flex-1 truncate",
+                                zoomedDate &&
+                                  isSameDay(day.date, zoomedDate) &&
+                                  isZooming &&
+                                  "truncate-none font-medium",
+                              )}
+                            >
+                              {task.title}
+                            </span>
+                            {task.is_urgent && (
+                              <span
+                                className={cn(
+                                  "text-[6px] sm:text-[8px] lg:text-[10px] bg-gray-200 text-gray-800 px-0.5 rounded border border-gray-400 flex-shrink-0",
+                                  zoomedDate && isSameDay(day.date, zoomedDate) && isZooming && "text-xs px-2 py-1",
+                                )}
+                              >
+                                !
+                              </span>
+                            )}
+                            {zoomedDate && isSameDay(day.date, zoomedDate) && isZooming && task.description && (
+                              <div className="text-xs text-gray-500 mt-1">{task.description}</div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    {dayTasks.length > 2 && !(zoomedDate && isSameDay(day.date, zoomedDate) && isZooming) && (
+                      <div className="text-[8px] sm:text-[10px] lg:text-xs text-gray-500 text-center">
+                        +{dayTasks.length - 2} еще
+                      </div>
+                    )}
+                  </div>
+
+                  {zoomedDate && isSameDay(day.date, zoomedDate) && isZooming && (
+                    <div className="mt-4 text-center">
+                      <div className="text-xs text-gray-500">Отпустите для возврата к календарю</div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
   useEffect(() => {
     return () => {
       if (touchTimer) {
@@ -143,18 +405,14 @@ export function MonthView({ tasks, projects, executors, onTasksChange }: MonthVi
   }, [touchTimer])
 
   return (
-    <div>
-      {/* Заголовок календаря */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-4 lg:mb-6 space-y-4 lg:space-y-0">
-        <div className="flex items-center space-x-2 lg:space-x-4">
-          <Button variant="outline" size="icon" onClick={navigatePrev} className="h-8 w-8 lg:h-10 lg:w-10">
-            <ChevronLeft className="h-3 w-3 lg:h-4 lg:w-4" />
-          </Button>
-          <h2 className="text-lg lg:text-xl font-semibold">{getMonthName()}</h2>
-          <Button variant="outline" size="icon" onClick={navigateNext} className="h-8 w-8 lg:h-10 lg:w-10">
-            <ChevronRight className="h-3 w-3 lg:h-4 lg:w-4" />
-          </Button>
-          <Button variant="outline" size="sm" onClick={navigateToday} className="text-xs lg:text-sm">
+    <div className="h-full flex flex-col">
+      {/* Заголовок с текущим видимым месяцем */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-4 lg:mb-6 space-y-4 lg:space-y-0 sticky top-0 bg-white z-10 pb-4 border-b">
+        <div className="flex items-center justify-center space-x-4">
+          <h2 className="text-lg lg:text-xl font-semibold">
+            {currentVisibleMonth.toLocaleDateString("ru-RU", { month: "long", year: "numeric" })}
+          </h2>
+          <Button variant="outline" size="sm" onClick={scrollToToday} className="text-xs lg:text-sm">
             Сегодня
           </Button>
         </div>
@@ -164,125 +422,14 @@ export function MonthView({ tasks, projects, executors, onTasksChange }: MonthVi
         </Button>
       </div>
 
-      {/* Заголовки дней недели */}
-      <div className="grid grid-cols-7 gap-1 mb-2">
-        {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((day) => (
-          <div key={day} className="text-center py-2 text-sm font-medium text-gray-500">
-            {day}
-          </div>
-        ))}
-      </div>
-
-      {/* Календарная сетка */}
-      <div className="grid grid-cols-7 gap-0.5 lg:gap-1">
-        {calendarDays.map((day, index) => {
-          const dayTasks = getTasksForDate(tasks, day.date)
-          const isToday = isSameDay(day.date, today)
-
-          return (
-            <Card
-              key={index}
-              className={cn(
-                "min-h-[60px] sm:min-h-[80px] lg:min-h-[120px] cursor-pointer transition-all duration-300 hover:bg-gray-50",
-                !day.isCurrentMonth && "bg-gray-50 opacity-50",
-                isToday && "ring-2 ring-blue-500",
-                zoomedDate &&
-                  isSameDay(day.date, zoomedDate) &&
-                  isZooming &&
-                  "fixed inset-4 z-50 min-h-[60vh] shadow-2xl ring-4 ring-blue-500 bg-white",
-              )}
-              onTouchStart={() => handleTouchStart(day.date)}
-              onTouchEnd={handleTouchEnd}
-              onTouchCancel={handleTouchCancel}
-              onClick={() => !isZooming && handleDateClick(day.date)}
-              style={{
-                transform: zoomedDate && isSameDay(day.date, zoomedDate) && isZooming ? "scale(1)" : "scale(1)",
-                zIndex: zoomedDate && isSameDay(day.date, zoomedDate) && isZooming ? 9999 : "auto",
-              }}
-            >
-              <CardContent
-                className={cn(
-                  "p-1 sm:p-2",
-                  zoomedDate && isSameDay(day.date, zoomedDate) && isZooming && "p-6 overflow-y-auto",
-                )}
-              >
-                <div
-                  className={cn(
-                    "text-xs sm:text-sm mb-1",
-                    !day.isCurrentMonth && "text-gray-400",
-                    isToday && "font-bold",
-                    zoomedDate && isSameDay(day.date, zoomedDate) && isZooming && "text-2xl font-bold mb-4 text-center",
-                  )}
-                >
-                  {zoomedDate && isSameDay(day.date, zoomedDate) && isZooming
-                    ? day.date.toLocaleDateString("ru-RU", { weekday: "long", day: "numeric", month: "long" })
-                    : day.date.getDate()}
-                </div>
-
-                <div
-                  className={cn(
-                    "space-y-0.5 max-h-[30px] sm:max-h-[50px] lg:max-h-[80px] overflow-y-auto",
-                    zoomedDate && isSameDay(day.date, zoomedDate) && isZooming && "max-h-none space-y-3",
-                  )}
-                >
-                  {dayTasks
-                    .slice(0, zoomedDate && isSameDay(day.date, zoomedDate) && isZooming ? dayTasks.length : 2)
-                    .map((task) => {
-                      const project = projects.find((p) => p.id === task.project_id)
-                      return (
-                        <div
-                          key={task.id}
-                          className={cn(
-                            "text-[8px] sm:text-[10px] lg:text-xs p-0.5 rounded border-l-2 truncate flex items-center gap-1",
-                            getStatusColor(task.status),
-                            zoomedDate &&
-                              isSameDay(day.date, zoomedDate) &&
-                              isZooming &&
-                              "text-sm p-3 rounded-lg shadow-sm",
-                          )}
-                          style={{ borderLeftColor: project?.color_icon }}
-                          title={task.title}
-                        >
-                          <span
-                            className={cn(
-                              "flex-1 truncate",
-                              zoomedDate && isSameDay(day.date, zoomedDate) && isZooming && "truncate-none font-medium",
-                            )}
-                          >
-                            {task.title}
-                          </span>
-                          {task.is_urgent && (
-                            <span
-                              className={cn(
-                                "text-[6px] sm:text-[8px] lg:text-[10px] bg-gray-200 text-gray-800 px-0.5 rounded border border-gray-400 flex-shrink-0",
-                                zoomedDate && isSameDay(day.date, zoomedDate) && isZooming && "text-xs px-2 py-1",
-                              )}
-                            >
-                              !
-                            </span>
-                          )}
-                          {zoomedDate && isSameDay(day.date, zoomedDate) && isZooming && task.description && (
-                            <div className="text-xs text-gray-500 mt-1">{task.description}</div>
-                          )}
-                        </div>
-                      )
-                    })}
-                  {dayTasks.length > 2 && !(zoomedDate && isSameDay(day.date, zoomedDate) && isZooming) && (
-                    <div className="text-[8px] sm:text-[10px] lg:text-xs text-gray-500 text-center">
-                      +{dayTasks.length - 2} еще
-                    </div>
-                  )}
-                </div>
-
-                {zoomedDate && isSameDay(day.date, zoomedDate) && isZooming && (
-                  <div className="mt-4 text-center">
-                    <div className="text-xs text-gray-500">Отпустите для возврата к календарю</div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )
-        })}
+      {/* Скроллируемый контейнер с месяцами */}
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto"
+        onScroll={handleScroll}
+        style={{ scrollBehavior: "smooth" }}
+      >
+        <div className="px-1">{months.map(renderMonth)}</div>
       </div>
 
       <TaskDialog
@@ -292,6 +439,7 @@ export function MonthView({ tasks, projects, executors, onTasksChange }: MonthVi
         projects={projects}
         executors={executors}
       />
+
       {isZooming && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 z-40"
