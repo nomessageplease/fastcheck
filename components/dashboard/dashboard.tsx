@@ -8,7 +8,7 @@ import { supabase } from "@/lib/supabase/client"
 import type { Project, Task, Executor } from "@/lib/supabase/types"
 import { Header } from "./header"
 import { TaskView } from "./task-view"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Calendar, CalendarDays, CalendarRange } from "lucide-react"
 import { SettingsPage } from "./settings-page"
 import { NotificationManager } from "./notification-manager"
@@ -35,12 +35,15 @@ export function Dashboard({ user }: DashboardProps) {
 
   // Состояния для свайпов
   const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null)
-  const [touchEnd, setTouchEnd] = useState<{ x: number; y: number } | null>(null)
+  const [touchCurrent, setTouchCurrent] = useState<{ x: number; y: number } | null>(null)
+  const [swipeOffset, setSwipeOffset] = useState(0)
   const [isTransitioning, setIsTransitioning] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Минимальное расстояние свайпа
-  const minSwipeDistance = 50
+  const minSwipeDistance = 80
+  const maxSwipeDistance = 200
 
   useEffect(() => {
     loadData()
@@ -148,32 +151,56 @@ export function Dashboard({ user }: DashboardProps) {
 
   // Обработчики свайпов
   const onTouchStart = (e: React.TouchEvent) => {
-    if (currentPage !== "dashboard") return
-    setTouchEnd(null)
+    if (currentPage !== "dashboard" || isTransitioning) return
+
     setTouchStart({
       x: e.targetTouches[0].clientX,
       y: e.targetTouches[0].clientY,
     })
-  }
-
-  const onTouchMove = (e: React.TouchEvent) => {
-    if (currentPage !== "dashboard") return
-    setTouchEnd({
+    setTouchCurrent({
       x: e.targetTouches[0].clientX,
       y: e.targetTouches[0].clientY,
     })
+    setIsDragging(false)
+    setSwipeOffset(0)
+  }
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (!touchStart || currentPage !== "dashboard" || isTransitioning) return
+
+    const currentTouch = {
+      x: e.targetTouches[0].clientX,
+      y: e.targetTouches[0].clientY,
+    }
+
+    setTouchCurrent(currentTouch)
+
+    const distanceX = currentTouch.x - touchStart.x
+    const distanceY = currentTouch.y - touchStart.y
+
+    // Проверяем, что это горизонтальный свайп
+    if (Math.abs(distanceX) > Math.abs(distanceY) && Math.abs(distanceX) > 10) {
+      setIsDragging(true)
+
+      // Ограничиваем offset
+      const clampedOffset = Math.max(-maxSwipeDistance, Math.min(maxSwipeDistance, distanceX))
+      setSwipeOffset(clampedOffset)
+
+      // Предотвращаем скролл страницы
+      e.preventDefault()
+    }
   }
 
   const onTouchEnd = () => {
-    if (!touchStart || !touchEnd || currentPage !== "dashboard") return
+    if (!touchStart || !touchCurrent || currentPage !== "dashboard" || isTransitioning) return
 
-    const distanceX = touchStart.x - touchEnd.x
-    const distanceY = touchStart.y - touchEnd.y
-    const isLeftSwipe = distanceX > minSwipeDistance
-    const isRightSwipe = distanceX < -minSwipeDistance
+    const distanceX = touchCurrent.x - touchStart.x
+    const distanceY = touchCurrent.y - touchStart.y
+    const isLeftSwipe = distanceX < -minSwipeDistance
+    const isRightSwipe = distanceX > minSwipeDistance
 
     // Проверяем, что горизонтальный свайп больше вертикального
-    if (Math.abs(distanceX) > Math.abs(distanceY)) {
+    if (Math.abs(distanceX) > Math.abs(distanceY) && isDragging) {
       const currentIndex = VIEW_TYPES.indexOf(viewType)
 
       if (isLeftSwipe && currentIndex < VIEW_TYPES.length - 1) {
@@ -184,6 +211,12 @@ export function Dashboard({ user }: DashboardProps) {
         changeViewWithAnimation(VIEW_TYPES[currentIndex - 1])
       }
     }
+
+    // Сброс состояний
+    setTouchStart(null)
+    setTouchCurrent(null)
+    setSwipeOffset(0)
+    setIsDragging(false)
   }
 
   const changeViewWithAnimation = (newViewType: ViewType) => {
@@ -200,11 +233,27 @@ export function Dashboard({ user }: DashboardProps) {
     // Убираем состояние анимации через короткое время
     setTimeout(() => {
       setIsTransitioning(false)
-    }, 300)
+    }, 400)
   }
 
   const handleTabChange = (value: string) => {
-    changeViewWithAnimation(value as ViewType)
+    if (!isTransitioning) {
+      changeViewWithAnimation(value as ViewType)
+    }
+  }
+
+  // Вычисляем стили для свайп-анимации
+  const getSwipeStyles = () => {
+    if (!isDragging || swipeOffset === 0) return {}
+
+    const opacity = 1 - (Math.abs(swipeOffset) / maxSwipeDistance) * 0.3
+    const scale = 1 - (Math.abs(swipeOffset) / maxSwipeDistance) * 0.05
+
+    return {
+      transform: `translateX(${swipeOffset}px) scale(${scale})`,
+      opacity,
+      transition: isTransitioning ? "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)" : "none",
+    }
   }
 
   if (loading) {
@@ -216,122 +265,100 @@ export function Dashboard({ user }: DashboardProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       <Header user={user} currentPage={currentPage} loadData={loadData} />
 
       {/* Менеджер уведомлений */}
       <NotificationManager user={user} tasks={tasks} projects={projects} onOpenReview={handleOpenReview} />
 
       {currentPage === "settings" ? (
-        <div className="p-6">
+        <div className="p-6 flex-1 overflow-y-auto">
           <SettingsPage user={user} projects={projects} executors={executors} onDataChange={loadData} />
         </div>
       ) : currentPage === "projects" ? (
-        <div className="p-6">
+        <div className="p-6 flex-1 overflow-y-auto">
           <ProjectsPage user={user} projects={projects} executors={executors} onDataChange={loadData} />
         </div>
       ) : (
-        <div
-          ref={containerRef}
-          className="p-3 lg:p-6"
-          onTouchStart={onTouchStart}
-          onTouchMove={onTouchMove}
-          onTouchEnd={onTouchEnd}
-        >
-          <Tabs value={viewType} onValueChange={handleTabChange} className="w-full">
-            <TabsList className="relative">
-              <TabsTrigger
-                value="month"
-                className={cn(
-                  "flex items-center gap-2 transition-all duration-300",
-                  isTransitioning && viewType === "month" && "scale-105",
-                )}
-              >
-                <CalendarRange className="h-4 w-4" />
-                Месяц
-              </TabsTrigger>
-              <TabsTrigger
-                value="week"
-                className={cn(
-                  "flex items-center gap-2 transition-all duration-300",
-                  isTransitioning && viewType === "week" && "scale-105",
-                )}
-              >
-                <CalendarDays className="h-4 w-4" />
-                Неделя
-              </TabsTrigger>
-              <TabsTrigger
-                value="day"
-                className={cn(
-                  "flex items-center gap-2 transition-all duration-300",
-                  isTransitioning && viewType === "day" && "scale-105",
-                )}
-              >
-                <Calendar className="h-4 w-4" />
-                День
-              </TabsTrigger>
+        <div className="flex-1 flex flex-col min-h-0">
+          <div className="p-3 lg:p-6 pb-0">
+            <Tabs value={viewType} onValueChange={handleTabChange} className="w-full">
+              <TabsList className="mb-4">
+                <TabsTrigger
+                  value="month"
+                  className={cn(
+                    "flex items-center gap-2 transition-all duration-300",
+                    isTransitioning && viewType === "month" && "scale-105",
+                  )}
+                >
+                  <CalendarRange className="h-4 w-4" />
+                  Месяц
+                </TabsTrigger>
+                <TabsTrigger
+                  value="week"
+                  className={cn(
+                    "flex items-center gap-2 transition-all duration-300",
+                    isTransitioning && viewType === "week" && "scale-105",
+                  )}
+                >
+                  <CalendarDays className="h-4 w-4" />
+                  Неделя
+                </TabsTrigger>
+                <TabsTrigger
+                  value="day"
+                  className={cn(
+                    "flex items-center gap-2 transition-all duration-300",
+                    isTransitioning && viewType === "day" && "scale-105",
+                  )}
+                >
+                  <Calendar className="h-4 w-4" />
+                  День
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
 
-              {/* Индикатор свайпа */}
-              <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2">
-                <div className="flex items-center gap-1 text-xs text-gray-400">
-                  <span>←</span>
-                  <span>свайп</span>
-                  <span>→</span>
-                </div>
-              </div>
-            </TabsList>
-
-            <TabsContent
-              value="month"
-              className={cn(
-                "mt-6 transition-all duration-300",
-                isTransitioning && viewType === "month" && "transform scale-[0.98] opacity-80",
+          {/* Контейнер календаря с фиксированной высотой */}
+          <div
+            className="flex-1 min-h-0 px-3 lg:px-6 pb-3 lg:pb-6"
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
+            style={getSwipeStyles()}
+          >
+            <div className="h-full overflow-y-auto">
+              {viewType === "month" && (
+                <TaskView
+                  tasks={tasks}
+                  projects={projects}
+                  executors={executors}
+                  user={user}
+                  viewType="month"
+                  onTasksChange={loadData}
+                />
               )}
-            >
-              <TaskView
-                tasks={tasks}
-                projects={projects}
-                executors={executors}
-                user={user}
-                viewType="month"
-                onTasksChange={loadData}
-              />
-            </TabsContent>
-
-            <TabsContent
-              value="week"
-              className={cn(
-                "mt-6 transition-all duration-300",
-                isTransitioning && viewType === "week" && "transform scale-[0.98] opacity-80",
+              {viewType === "week" && (
+                <TaskView
+                  tasks={tasks}
+                  projects={projects}
+                  executors={executors}
+                  user={user}
+                  viewType="week"
+                  onTasksChange={loadData}
+                />
               )}
-            >
-              <TaskView
-                tasks={tasks}
-                projects={projects}
-                executors={executors}
-                user={user}
-                viewType="week"
-                onTasksChange={loadData}
-              />
-            </TabsContent>
-
-            <TabsContent
-              value="day"
-              className={cn(
-                "mt-6 transition-all duration-300",
-                isTransitioning && viewType === "day" && "transform scale-[0.98] opacity-80",
+              {viewType === "day" && (
+                <TaskView
+                  tasks={tasks}
+                  projects={projects}
+                  executors={executors}
+                  user={user}
+                  viewType="day"
+                  onTasksChange={loadData}
+                />
               )}
-            >
-              <TaskView
-                tasks={tasks}
-                projects={projects}
-                executors={executors}
-                user={user}
-                viewType="day"
-                onTasksChange={loadData}
-              />
-            </TabsContent>
-          </Tabs>
+            </div>
+          </div>
         </div>
       )}
 
