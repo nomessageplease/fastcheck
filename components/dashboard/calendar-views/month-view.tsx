@@ -276,18 +276,7 @@ export function MonthView({ tasks, projects, executors, onTasksChange }: MonthVi
 
                 {zoomedDate && isSameDay(day.date, zoomedDate) && isZooming && (
                   <div className="mt-4 text-center">
-                    <div className="text-xs text-gray-500 mb-2">Отпустите для возврата к календарю</div>
-                    <Button
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleDateClick(day.date)
-                      }}
-                      className="w-full"
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Добавить задачу
-                    </Button>
+                    <div className="text-xs text-gray-500">Отпустите для возврата к календарю</div>
                   </div>
                 )}
               </CardContent>

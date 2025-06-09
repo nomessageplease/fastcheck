@@ -230,7 +230,7 @@ export function ProjectsPage({ user, projects, executors, onDataChange }: Projec
 
     return (
       <div className={`${level > 0 ? "ml-6 border-l-2 border-gray-200 pl-4" : ""}`}>
-        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg mb-2">
+        <div className="flex flex-col p-3 bg-gray-50 rounded-lg mb-2 gap-3">
           <div className="flex items-center gap-3 flex-1">
             {hasSubtasks && (
               <Button variant="ghost" size="sm" onClick={() => toggleTask(task.id)} className="p-1 h-6 w-6">
@@ -261,19 +261,19 @@ export function ProjectsPage({ user, projects, executors, onDataChange }: Projec
                 )}
               </div>
             </div>
+          </div>
 
-            <div className="flex items-center gap-2">
-              {getStatusBadge(task.status)}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={(e) => handleCreateTask(e, project, task)}
-                className="h-7 px-2 text-xs"
-              >
-                <Plus className="h-3 w-3 mr-1" />
-                Подзадача
-              </Button>
-            </div>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 flex-shrink-0 w-full sm:w-auto">
+            <div className="w-full sm:w-auto">{getStatusBadge(task.status)}</div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => handleCreateTask(e, project, task)}
+              className="h-8 px-3 text-xs w-full sm:w-auto min-w-0"
+            >
+              <Plus className="h-3 w-3 mr-1 flex-shrink-0" />
+              <span className="truncate">Подзадача</span>
+            </Button>
           </div>
         </div>
 
@@ -370,14 +370,19 @@ export function ProjectsPage({ user, projects, executors, onDataChange }: Projec
                         </div>
                         <CardDescription className="mt-1 ml-8">{project.description}</CardDescription>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Button variant="outline" size="icon" onClick={(e) => handleEditProject(e, project)}>
+                      <div className="flex gap-1 ml-2 flex-shrink-0">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={(e) => handleEditProject(e, project)}
+                          className="h-9 w-9 touch-manipulation"
+                        >
                           <Edit className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="outline"
                           size="icon"
-                          className="text-destructive"
+                          className="h-9 w-9 text-destructive touch-manipulation"
                           onClick={(e) => handleDeleteProject(e, project)}
                         >
                           <Trash2 className="h-4 w-4" />
