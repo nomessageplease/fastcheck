@@ -456,11 +456,7 @@ export function ProjectsPage({ user, projects, executors, onDataChange }: Projec
                         <CardDescription className="mt-1 ml-8 line-clamp-2">{project.description}</CardDescription>
 
                         {/* Прогресс-бар проекта - всегда видимый */}
-                        <div className="ml-8 mt-2 space-y-1">
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-gray-600">Прогресс выполнения</span>
-                            <span className="font-medium">{stats.progress}%</span>
-                          </div>
+                        <div className="ml-8 mt-2">
                           <Progress value={stats.progress} className="h-2" />
                         </div>
 
