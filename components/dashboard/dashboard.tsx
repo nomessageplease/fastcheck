@@ -266,61 +266,70 @@ export function Dashboard({ user }: DashboardProps) {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <Header user={user} currentPage={currentPage} loadData={loadData} />
+      {/* Фиксированная верхняя часть */}
+      <div className="sticky top-0 z-50 bg-gray-50">
+        <Header user={user} currentPage={currentPage} loadData={loadData} />
 
-      {/* Менеджер уведомлений */}
-      <NotificationManager user={user} tasks={tasks} projects={projects} onOpenReview={handleOpenReview} />
+        {/* Менеджер уведомлений */}
+        <NotificationManager user={user} tasks={tasks} projects={projects} onOpenReview={handleOpenReview} />
 
+        {currentPage === "dashboard" && (
+          <>
+            {/* Табы переключения видов */}
+            <div className="px-3 lg:px-6 pb-0">
+              <Tabs value={viewType} onValueChange={handleTabChange} className="w-full">
+                <TabsList className="mb-4">
+                  <TabsTrigger
+                    value="month"
+                    className={cn(
+                      "flex items-center gap-2 transition-all duration-300",
+                      isTransitioning && viewType === "month" && "scale-105",
+                    )}
+                  >
+                    <CalendarRange className="h-4 w-4" />
+                    Месяц
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="week"
+                    className={cn(
+                      "flex items-center gap-2 transition-all duration-300",
+                      isTransitioning && viewType === "week" && "scale-105",
+                    )}
+                  >
+                    <CalendarDays className="h-4 w-4" />
+                    Неделя
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="day"
+                    className={cn(
+                      "flex items-center gap-2 transition-all duration-300",
+                      isTransitioning && viewType === "day" && "scale-105",
+                    )}
+                  >
+                    <Calendar className="h-4 w-4" />
+                    День
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Основной контент */}
       {currentPage === "settings" ? (
-        <div className="p-6 flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto p-6">
           <SettingsPage user={user} projects={projects} executors={executors} onDataChange={loadData} />
         </div>
       ) : currentPage === "projects" ? (
-        <div className="p-6 flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto p-6">
           <ProjectsPage user={user} projects={projects} executors={executors} onDataChange={loadData} />
         </div>
       ) : (
-        <div className="flex-1 flex flex-col min-h-0">
-          <div className="p-3 lg:p-6 pb-0">
-            <Tabs value={viewType} onValueChange={handleTabChange} className="w-full">
-              <TabsList className="mb-4">
-                <TabsTrigger
-                  value="month"
-                  className={cn(
-                    "flex items-center gap-2 transition-all duration-300",
-                    isTransitioning && viewType === "month" && "scale-105",
-                  )}
-                >
-                  <CalendarRange className="h-4 w-4" />
-                  Месяц
-                </TabsTrigger>
-                <TabsTrigger
-                  value="week"
-                  className={cn(
-                    "flex items-center gap-2 transition-all duration-300",
-                    isTransitioning && viewType === "week" && "scale-105",
-                  )}
-                >
-                  <CalendarDays className="h-4 w-4" />
-                  Неделя
-                </TabsTrigger>
-                <TabsTrigger
-                  value="day"
-                  className={cn(
-                    "flex items-center gap-2 transition-all duration-300",
-                    isTransitioning && viewType === "day" && "scale-105",
-                  )}
-                >
-                  <Calendar className="h-4 w-4" />
-                  День
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-
+        <div className="flex-1 min-h-0">
           {/* Контейнер календаря с фиксированной высотой */}
           <div
-            className="flex-1 min-h-0 px-3 lg:px-6 pb-3 lg:pb-6"
+            className="h-full px-3 lg:px-6 pb-3 lg:pb-6"
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}

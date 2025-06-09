@@ -297,20 +297,6 @@ export function MonthView({ tasks, projects, executors, onTasksChange }: MonthVi
 
   return (
     <div className="h-full flex flex-col">
-      {/* Заголовок с текущим видимым месяцем */}
-      <div className="flex items-center justify-between mb-4 lg:mb-6 sticky top-0 bg-white z-10 pb-4 border-b">
-        <h2 className="text-lg lg:text-xl font-semibold">Календарь</h2>
-        <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm" onClick={scrollToToday} className="text-xs lg:text-sm">
-            Сегодня
-          </Button>
-          <Button onClick={() => setTaskDialogOpen(true)} size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            <span className="lg:inline">Новая задача</span>
-          </Button>
-        </div>
-      </div>
-
       {/* Скроллируемый контейнер с месяцами */}
       <div
         ref={scrollContainerRef}
