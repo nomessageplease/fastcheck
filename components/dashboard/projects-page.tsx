@@ -374,7 +374,7 @@ export function ProjectsPage({ user, projects, executors, onDataChange }: Projec
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-2 sm:px-0 max-w-full overflow-x-hidden">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold">Проекты</h1>
@@ -386,19 +386,19 @@ export function ProjectsPage({ user, projects, executors, onDataChange }: Projec
             setSelectedProject(null)
             setProjectDialogOpen(true)
           }}
-          className="flex items-center gap-2"
+          className="flex items-center gap-2 whitespace-nowrap"
         >
           <Plus className="h-4 w-4" />
           Новый проект
         </Button>
       </div>
 
-      <div className="max-w-md">
+      <div className="w-full max-w-full">
         <Input
           placeholder="Поиск проектов..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="mb-4"
+          className="mb-4 w-full"
         />
       </div>
 
@@ -428,18 +428,18 @@ export function ProjectsPage({ user, projects, executors, onDataChange }: Projec
             const stats = getProjectStats(project.id)
 
             return (
-              <Card key={project.id}>
+              <Card key={project.id} className="overflow-hidden">
                 <Collapsible open={isExpanded} onOpenChange={() => toggleProject(project.id)}>
-                  <CardHeader className="cursor-pointer" onClick={() => toggleProject(project.id)}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
+                  <CardHeader className="cursor-pointer px-4 py-3 sm:px-6" onClick={() => toggleProject(project.id)}>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <div className="p-1 h-6 w-6 flex items-center justify-center">
+                          <div className="p-1 h-6 w-6 flex items-center justify-center flex-shrink-0">
                             {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                           </div>
-                          <CardTitle className="text-lg">{project.name}</CardTitle>
+                          <CardTitle className="text-lg truncate">{project.name}</CardTitle>
                         </div>
-                        <CardDescription className="mt-1 ml-8">{project.description}</CardDescription>
+                        <CardDescription className="mt-1 ml-8 line-clamp-2">{project.description}</CardDescription>
 
                         {/* Прогресс-бар проекта */}
                         <div className="ml-8 mt-3 space-y-2">
@@ -448,8 +448,8 @@ export function ProjectsPage({ user, projects, executors, onDataChange }: Projec
                             <span className="font-medium">{stats.progress}%</span>
                           </div>
                           <Progress value={stats.progress} className="h-2" />
-                          <div className="flex items-center gap-4 text-xs text-gray-500">
-                            <span>Всего задач: {stats.total}</span>
+                          <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-x-2 gap-y-1 text-xs text-gray-500">
+                            <span>Всего: {stats.total}</span>
                             <span>Завершено: {stats.completed}</span>
                             <span>В работе: {stats.inProgress}</span>
                             <span>Ожидание: {stats.pending}</span>
@@ -461,23 +461,23 @@ export function ProjectsPage({ user, projects, executors, onDataChange }: Projec
                           variant="outline"
                           size="icon"
                           onClick={(e) => handleEditProject(e, project)}
-                          className="h-9 w-9 touch-manipulation"
+                          className="h-8 w-8 touch-manipulation"
                         >
-                          <Edit className="h-4 w-4" />
+                          <Edit className="h-3.5 w-3.5" />
                         </Button>
                         <Button
                           variant="outline"
                           size="icon"
-                          className="h-9 w-9 text-destructive touch-manipulation"
+                          className="h-8 w-8 text-destructive touch-manipulation"
                           onClick={(e) => handleDeleteProject(e, project)}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     </div>
                   </CardHeader>
 
-                  <CardContent>
+                  <CardContent className="px-4 pb-3 sm:px-6">
                     <div className="text-sm mb-4 ml-8">
                       <p>
                         <strong>Дата начала:</strong> {formatDate(project.start_date)}
@@ -498,7 +498,8 @@ export function ProjectsPage({ user, projects, executors, onDataChange }: Projec
                             className="flex items-center gap-2"
                           >
                             <Plus className="h-4 w-4" />
-                            Создать задачу
+                            <span className="hidden sm:inline">Создать задачу</span>
+                            <span className="sm:hidden">Задача</span>
                           </Button>
                         </div>
                         {isLoading ? (
