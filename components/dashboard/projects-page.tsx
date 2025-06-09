@@ -239,10 +239,10 @@ export function ProjectsPage({ user, projects, executors, onDataChange }: Projec
             )}
             {!hasSubtasks && <div className="w-6" />}
 
-            <div className="flex-1">
-              <div className="font-medium text-sm">{task.title}</div>
-              {task.description && <div className="text-xs text-gray-600 mt-1">{task.description}</div>}
-              <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+            <div className="flex-1 text-left">
+              <div className="font-medium text-sm text-left">{task.title}</div>
+              {task.description && <div className="text-xs text-gray-600 mt-1 text-left">{task.description}</div>}
+              <div className="flex items-center gap-4 mt-2 text-xs text-gray-500 text-left">
                 <div className="flex items-center gap-1">
                   <Calendar className="h-3 w-3" />
                   {formatDate(task.start_date)} - {formatDate(task.due_date)}
