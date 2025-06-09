@@ -22,8 +22,6 @@ export function WeekView({ tasks, projects, executors, onTasksChange }: WeekView
   const [taskDialogOpen, setTaskDialogOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [expandedDay, setExpandedDay] = useState<Date | null>(null)
-  const [touchStartTime, setTouchStartTime] = useState<number | null>(null)
-  const [touchTimeout, setTouchTimeout] = useState<NodeJS.Timeout | null>(null)
   const expandedCardRef = useRef<HTMLDivElement>(null)
 
   const isMobile = useMediaQuery("(max-width: 640px)")
@@ -61,36 +59,21 @@ export function WeekView({ tasks, projects, executors, onTasksChange }: WeekView
     return `${formatDateShort(weekStart)} - ${formatDateShort(weekEnd)}`
   }
 
-  const handleDateClick = (date: Date) => {
+  const handleDayClick = (date: Date) => {
+    if (isMobile) {
+      // На мобильных открываем расширенный вид
+      setExpandedDay(date)
+    } else {
+      // На десктопе открываем диалог создания задачи
+      setSelectedDate(date)
+      setTaskDialogOpen(true)
+    }
+  }
+
+  const handleAddTaskClick = (date: Date) => {
     setSelectedDate(date)
     setTaskDialogOpen(true)
-  }
-
-  const handleTouchStart = (date: Date) => {
-    if (!isMobile) return
-
-    setTouchStartTime(Date.now())
-    const timeout = setTimeout(() => {
-      // Вибрация, если поддерживается
-      if (navigator.vibrate) {
-        navigator.vibrate(50)
-      }
-      setExpandedDay(date)
-    }, 500) // 500ms для долгого нажатия
-
-    setTouchTimeout(timeout)
-  }
-
-  const handleTouchEnd = () => {
-    if (touchTimeout) {
-      clearTimeout(touchTimeout)
-      setTouchTimeout(null)
-    }
-    setTouchStartTime(null)
-  }
-
-  const handleTouchMove = () => {
-    handleTouchEnd() // Отменяем таймер при движении пальца
+    setExpandedDay(null) // Закрываем расширенный вид
   }
 
   const closeExpandedDay = () => {
@@ -171,10 +154,12 @@ export function WeekView({ tasks, projects, executors, onTasksChange }: WeekView
             Сегодня
           </Button>
         </div>
-        <Button onClick={() => setTaskDialogOpen(true)} className={cn(isMobile && "w-full")}>
-          <Plus className="h-4 w-4 mr-2" />
-          {isMobile ? "Задача" : "Новая задача"}
-        </Button>
+        {!isMobile && (
+          <Button onClick={() => setTaskDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Новая задача
+          </Button>
+        )}
       </div>
 
       {/* Мобильный вид недели */}
@@ -199,14 +184,11 @@ export function WeekView({ tasks, projects, executors, onTasksChange }: WeekView
               <Card
                 key={date.toISOString()}
                 className={cn(
-                  "min-h-[100px] flex flex-col touch-manipulation",
+                  "min-h-[100px] flex flex-col cursor-pointer touch-manipulation",
                   isToday && "ring-2 ring-blue-500",
                   hasUrgentTasks && "border-red-300",
                 )}
-                onTouchStart={() => handleTouchStart(date)}
-                onTouchEnd={handleTouchEnd}
-                onTouchMove={handleTouchMove}
-                onClick={() => handleDateClick(date)}
+                onClick={() => handleDayClick(date)}
               >
                 <CardContent className="p-1 sm:p-2 flex flex-col h-full">
                   <div className="flex items-center justify-between mb-1">
@@ -277,7 +259,7 @@ export function WeekView({ tasks, projects, executors, onTasksChange }: WeekView
                         <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-1 py-0.5 rounded">Сегодня</span>
                       )}
                     </div>
-                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleDateClick(date)}>
+                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleDayClick(date)}>
                       <Plus className="h-3 w-3" />
                     </Button>
                   </div>
@@ -319,7 +301,7 @@ export function WeekView({ tasks, projects, executors, onTasksChange }: WeekView
         </div>
       )}
 
-      {/* Расширенный вид дня при долгом нажатии */}
+      {/* Расширенный вид дня при клике на мобильном */}
       {expandedDay && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={closeExpandedDay}>
           <div
@@ -332,7 +314,11 @@ export function WeekView({ tasks, projects, executors, onTasksChange }: WeekView
                 <div className="flex items-center">
                   <Calendar className="h-5 w-5 mr-2 text-blue-500" />
                   <h3 className="text-lg font-semibold">
-                    {formatDateShort(expandedDay)}
+                    {expandedDay.toLocaleDateString("ru-RU", {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "long",
+                    })}
                     {isSameDay(expandedDay, today) && (
                       <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Сегодня</span>
                     )}
@@ -344,7 +330,7 @@ export function WeekView({ tasks, projects, executors, onTasksChange }: WeekView
               </div>
             </div>
 
-            <div className="p-4 overflow-y-auto max-h-[calc(80vh-64px)]">
+            <div className="p-4 overflow-y-auto max-h-[calc(80vh-140px)]">
               {getTasksForDate(tasks, expandedDay).length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <Calendar className="h-12 w-12 mx-auto mb-2 text-gray-300" />
@@ -396,10 +382,23 @@ export function WeekView({ tasks, projects, executors, onTasksChange }: WeekView
 
                         {executor && (
                           <div className="mt-3 text-xs text-gray-500 flex items-center">
-                            <span className="inline-block h-4 w-4 rounded-full bg-gray-200 mr-1"></span>
+                            <span
+                              className="inline-block h-3 w-3 rounded-full mr-1"
+                              style={{ backgroundColor: executor.color_icon }}
+                            ></span>
                             {executor.name}
                           </div>
                         )}
+
+                        <div className="mt-2 text-xs text-gray-400">
+                          {new Date(task.start_date).toLocaleDateString("ru-RU")}{" "}
+                          {new Date(task.start_date).toLocaleTimeString("ru-RU", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}{" "}
+                          - {new Date(task.due_date).toLocaleDateString("ru-RU")}{" "}
+                          {new Date(task.due_date).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}
+                        </div>
                       </div>
                     )
                   })}
@@ -407,7 +406,13 @@ export function WeekView({ tasks, projects, executors, onTasksChange }: WeekView
               )}
             </div>
 
-            <div className="p-4 border-t text-center text-sm text-gray-500">Отпустите для возврата к календарю</div>
+            {/* Кнопка добавления задачи */}
+            <div className="p-4 border-t">
+              <Button onClick={() => handleAddTaskClick(expandedDay)} className="w-full" size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Добавить задачу
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -424,6 +429,7 @@ export function WeekView({ tasks, projects, executors, onTasksChange }: WeekView
         }}
         projects={projects}
         executors={executors}
+        initialDate={selectedDate || undefined}
       />
     </div>
   )
