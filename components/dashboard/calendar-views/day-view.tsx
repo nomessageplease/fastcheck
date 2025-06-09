@@ -23,6 +23,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import type { User } from "@supabase/supabase-js"
+import { getTaskUrgencyStatus, getTaskCardClassName } from "@/lib/task-urgency-utils"
 
 interface DayViewProps {
   tasks: Task[]
@@ -64,6 +65,7 @@ export function DayView({ tasks, projects, executors, user, onTasksChange }: Day
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null)
   const [currentTime, setCurrentTime] = useState(new Date())
+  const [taskUrgencyStatuses, setTaskUrgencyStatuses] = useState<Record<string, any>>({})
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -72,6 +74,21 @@ export function DayView({ tasks, projects, executors, user, onTasksChange }: Day
 
     return () => clearInterval(interval)
   }, [])
+
+  // Обновляем статусы срочности задач
+  useEffect(() => {
+    const updateTaskUrgencyStatuses = async () => {
+      const statuses: Record<string, any> = {}
+      for (const task of tasks) {
+        statuses[task.id] = await getTaskUrgencyStatus(task, user.id)
+      }
+      setTaskUrgencyStatuses(statuses)
+    }
+
+    if (tasks.length > 0) {
+      updateTaskUrgencyStatuses()
+    }
+  }, [tasks, user.id, currentTime])
 
   const today = new Date()
   const isToday = isSameDay(currentDate, today)
@@ -218,11 +235,13 @@ export function DayView({ tasks, projects, executors, user, onTasksChange }: Day
     const project = projects.find((p) => p.id === task.project_id)
     const executor = executors.find((e) => e.id === task.executor_id)
     const needsReview = canReviewTask(task)
+    const urgencyStatus = taskUrgencyStatuses[task.id]
+    const shouldHighlight = urgencyStatus?.shouldHighlight || false
 
     return (
       <Card
         key={task.id}
-        className={cn("mb-3 cursor-pointer transition-all hover:shadow-md", needsReview && "ring-2 ring-yellow-300")}
+        className={cn(getTaskCardClassName(shouldHighlight, needsReview))}
         onClick={() => (needsReview ? handleReviewTask(task) : undefined)}
       >
         <CardContent className="p-4">
@@ -237,7 +256,12 @@ export function DayView({ tasks, projects, executors, user, onTasksChange }: Day
                       Срочно
                     </Badge>
                   )}
-                  {needsReview && (
+                  {shouldHighlight && (
+                    <Badge variant="destructive" className="text-white bg-red-600">
+                      Критично просрочено
+                    </Badge>
+                  )}
+                  {needsReview && !shouldHighlight && (
                     <Badge variant="outline" className="text-yellow-600 border-yellow-600">
                       Требует проверки
                     </Badge>
@@ -263,6 +287,14 @@ export function DayView({ tasks, projects, executors, user, onTasksChange }: Day
                       <span>Осталось: {getTimeRemaining(task.due_date)}</span>
                     </div>
                   )}
+                  {urgencyStatus?.isOverdue && urgencyStatus?.hoursOverdue > 0 && (
+                    <div
+                      className={`flex items-center text-xs font-medium ${shouldHighlight ? "text-red-700" : "text-orange-600"}`}
+                    >
+                      <AlertTriangle className="w-3 h-3 mr-1" />
+                      <span>Просрочено на {urgencyStatus.hoursOverdue}ч</span>
+                    </div>
+                  )}
                   <div className="text-xs text-gray-500">
                     {new Date(task.start_date).toLocaleDateString("ru-RU")}{" "}
                     {new Date(task.start_date).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })} -{" "}
@@ -275,7 +307,7 @@ export function DayView({ tasks, projects, executors, user, onTasksChange }: Day
             <div className="flex space-x-1" onClick={(e) => e.stopPropagation()}>
               {needsReview && (
                 <Button variant="ghost" size="icon" onClick={() => handleReviewTask(task)} title="Проверить задачу">
-                  <Eye className="h-4 w-4 text-yellow-600" />
+                  <Eye className={`h-4 w-4 ${shouldHighlight ? "text-red-600" : "text-yellow-600"}`} />
                 </Button>
               )}
               <Button variant="ghost" size="icon" onClick={() => handleEditTask(task)}>

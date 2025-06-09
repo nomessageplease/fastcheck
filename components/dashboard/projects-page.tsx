@@ -2,14 +2,14 @@
 
 import type React from "react"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
 import type { Project, Executor, Task } from "@/lib/supabase/types"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ProjectDialog } from "./project-dialog"
 import { TaskDialog } from "./task-dialog"
-import { Plus, Edit, Trash2, ChevronDown, ChevronRight, Calendar, User, Clock } from "lucide-react"
+import { Plus, Edit, Trash2, ChevronDown, ChevronRight, Calendar, User, Clock, AlertTriangle } from "lucide-react"
 import { supabase } from "@/lib/supabase/client"
 import {
   AlertDialog,
@@ -24,6 +24,8 @@ import {
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
+import { getTaskUrgencyStatus } from "@/lib/task-urgency-utils"
+import { cn } from "@/lib/utils"
 
 interface ProjectsPageProps {
   user: SupabaseUser | null
@@ -46,6 +48,27 @@ export function ProjectsPage({ user, projects, executors, onDataChange }: Projec
   const [projectTasks, setProjectTasks] = useState<Record<string, Task[]>>({})
   const [loadingTasks, setLoadingTasks] = useState<Set<string>>(new Set())
   const [taskKey, setTaskKey] = useState(0) // Ключ для принудительного пересоздания TaskDialog
+  const [taskUrgencyStatuses, setTaskUrgencyStatuses] = useState<Record<string, any>>({})
+
+  // Обновляем статусы срочности задач
+  useEffect(() => {
+    const updateTaskUrgencyStatuses = async () => {
+      if (!user) return
+
+      const statuses: Record<string, any> = {}
+      const allTasks = Object.values(projectTasks).flat()
+
+      for (const task of allTasks) {
+        statuses[task.id] = await getTaskUrgencyStatus(task, user.id)
+      }
+      setTaskUrgencyStatuses(statuses)
+    }
+
+    const allTasks = Object.values(projectTasks).flat()
+    if (allTasks.length > 0 && user) {
+      updateTaskUrgencyStatuses()
+    }
+  }, [projectTasks, user])
 
   const handleEditProject = (e: React.MouseEvent, project: Project) => {
     e.stopPropagation()
@@ -227,10 +250,17 @@ export function ProjectsPage({ user, projects, executors, onDataChange }: Projec
     const subtasks = getSubtasks(tasks, task.id)
     const hasSubtasks = subtasks.length > 0
     const isExpanded = expandedTasks.has(task.id)
+    const urgencyStatus = taskUrgencyStatuses[task.id]
+    const shouldHighlight = urgencyStatus?.shouldHighlight || false
 
     return (
       <div className={`${level > 0 ? "ml-6 border-l-2 border-gray-200 pl-4" : ""}`}>
-        <div className="flex flex-col p-3 bg-gray-50 rounded-lg mb-2 gap-3">
+        <div
+          className={cn(
+            "flex flex-col p-3 rounded-lg mb-2 gap-3",
+            shouldHighlight ? "bg-red-50 border-2 border-red-300" : "bg-gray-50",
+          )}
+        >
           <div className="flex items-center gap-3 flex-1">
             {hasSubtasks && (
               <Button variant="ghost" size="sm" onClick={() => toggleTask(task.id)} className="p-1 h-6 w-6">
@@ -259,12 +289,25 @@ export function ProjectsPage({ user, projects, executors, onDataChange }: Projec
                     Срочно
                   </div>
                 )}
+                {urgencyStatus?.isOverdue && urgencyStatus?.hoursOverdue > 0 && (
+                  <div className={`flex items-center gap-1 ${shouldHighlight ? "text-red-700" : "text-orange-600"}`}>
+                    <AlertTriangle className="h-3 w-3" />
+                    Просрочено на {urgencyStatus.hoursOverdue}ч
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 flex-shrink-0 w-full sm:w-auto">
-            <div className="w-full sm:w-auto">{getStatusBadge(task.status)}</div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {getStatusBadge(task.status)}
+              {shouldHighlight && (
+                <Badge variant="destructive" className="text-white bg-red-600">
+                  Критично просрочено
+                </Badge>
+              )}
+            </div>
             <Button
               variant="outline"
               size="sm"
