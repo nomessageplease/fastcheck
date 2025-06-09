@@ -27,22 +27,20 @@ export function MonthView({ tasks, projects, executors, onTasksChange }: MonthVi
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [expandedDate, setExpandedDate] = useState<Date | null>(null)
   const [months, setMonths] = useState<MonthData[]>([])
-  const [currentVisibleMonth, setCurrentVisibleMonth] = useState(new Date())
   const [isInitialLoad, setIsInitialLoad] = useState(true)
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const monthRefs = useRef<Map<string, HTMLDivElement>>(new Map())
-  const observerRef = useRef<IntersectionObserver | null>(null)
 
   const today = new Date()
 
-  // Инициализация месяцев
+  // Инициализация месяцев - текущий месяц сверху
   useEffect(() => {
     const currentDate = new Date()
     const initialMonths: MonthData[] = []
 
-    // Добавляем 6 месяцев назад, текущий и 12 месяцев вперед
-    for (let i = -6; i <= 12; i++) {
+    // Добавляем текущий месяц и следующие 11 месяцев
+    for (let i = 0; i <= 11; i++) {
       const date = new Date(currentDate.getFullYear(), currentDate.getMonth() + i, 1)
       initialMonths.push({
         year: date.getFullYear(),
@@ -64,98 +62,6 @@ export function MonthView({ tasks, projects, executors, onTasksChange }: MonthVi
       }, 100)
     }
   }, [months, isInitialLoad])
-
-  // Intersection Observer для определения видимого месяца
-  useEffect(() => {
-    if (!scrollContainerRef.current) return
-
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting && entry.intersectionRatio > 0.5) {
-            const monthId = entry.target.getAttribute("data-month-id")
-            if (monthId) {
-              const [year, month] = monthId.split("-").map(Number)
-              setCurrentVisibleMonth(new Date(year, month, 1))
-            }
-          }
-        })
-      },
-      {
-        root: scrollContainerRef.current,
-        threshold: [0.5],
-        rootMargin: "-20% 0px -20% 0px",
-      },
-    )
-
-    return () => {
-      if (observerRef.current) {
-        observerRef.current.disconnect()
-      }
-    }
-  }, [])
-
-  // Подключение наблюдателя к элементам месяцев
-  useEffect(() => {
-    if (!observerRef.current) return
-
-    monthRefs.current.forEach((element) => {
-      observerRef.current?.observe(element)
-    })
-
-    return () => {
-      if (observerRef.current) {
-        monthRefs.current.forEach((element) => {
-          observerRef.current?.unobserve(element)
-        })
-      }
-    }
-  }, [months])
-
-  // Бесконечный скролл - добавление месяцев
-  const handleScroll = useCallback(() => {
-    if (!scrollContainerRef.current) return
-
-    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current
-
-    // Добавляем месяцы вперед при приближении к концу
-    if (scrollTop + clientHeight > scrollHeight - 1000) {
-      setMonths((prev) => {
-        const lastMonth = prev[prev.length - 1]
-        const newMonths = []
-
-        for (let i = 1; i <= 3; i++) {
-          const date = new Date(lastMonth.year, lastMonth.month + i, 1)
-          newMonths.push({
-            year: date.getFullYear(),
-            month: date.getMonth(),
-            id: `${date.getFullYear()}-${date.getMonth()}`,
-          })
-        }
-
-        return [...prev, ...newMonths]
-      })
-    }
-
-    // Добавляем месяцы назад при приближении к началу
-    if (scrollTop < 1000) {
-      setMonths((prev) => {
-        const firstMonth = prev[0]
-        const newMonths = []
-
-        for (let i = 3; i >= 1; i--) {
-          const date = new Date(firstMonth.year, firstMonth.month - i, 1)
-          newMonths.push({
-            year: date.getFullYear(),
-            month: date.getMonth(),
-            id: `${date.getFullYear()}-${date.getMonth()}`,
-          })
-        }
-
-        return [...newMonths, ...prev]
-      })
-    }
-  }, [])
 
   const scrollToToday = () => {
     const todayId = `${today.getFullYear()}-${today.getMonth()}`
@@ -345,22 +251,64 @@ export function MonthView({ tasks, projects, executors, onTasksChange }: MonthVi
     )
   }
 
+  const handleScroll = useCallback(() => {
+    if (!scrollContainerRef.current) return
+
+    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current
+
+    // Добавляем месяцы вперед при приближении к концу
+    if (scrollTop + clientHeight > scrollHeight - 1000) {
+      setMonths((prev) => {
+        const lastMonth = prev[prev.length - 1]
+        const newMonths = []
+
+        for (let i = 1; i <= 6; i++) {
+          const date = new Date(lastMonth.year, lastMonth.month + i, 1)
+          newMonths.push({
+            year: date.getFullYear(),
+            month: date.getMonth(),
+            id: `${date.getFullYear()}-${date.getMonth()}`,
+          })
+        }
+
+        return [...prev, ...newMonths]
+      })
+    }
+
+    // Добавляем месяцы назад при приближении к началу
+    if (scrollTop < 1000) {
+      setMonths((prev) => {
+        const firstMonth = prev[0]
+        const newMonths = []
+
+        for (let i = 6; i >= 1; i--) {
+          const date = new Date(firstMonth.year, firstMonth.month - i, 1)
+          newMonths.push({
+            year: date.getFullYear(),
+            month: date.getMonth(),
+            id: `${date.getFullYear()}-${date.getMonth()}`,
+          })
+        }
+
+        return [...newMonths, ...prev]
+      })
+    }
+  }, [])
+
   return (
     <div className="h-full flex flex-col">
       {/* Заголовок с текущим видимым месяцем */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-4 lg:mb-6 space-y-4 lg:space-y-0 sticky top-0 bg-white z-10 pb-4 border-b">
-        <div className="flex items-center justify-center space-x-4">
-          <h2 className="text-lg lg:text-xl font-semibold">
-            {currentVisibleMonth.toLocaleDateString("ru-RU", { month: "long", year: "numeric" })}
-          </h2>
+      <div className="flex items-center justify-between mb-4 lg:mb-6 sticky top-0 bg-white z-10 pb-4 border-b">
+        <h2 className="text-lg lg:text-xl font-semibold">Календарь</h2>
+        <div className="flex items-center space-x-2">
           <Button variant="outline" size="sm" onClick={scrollToToday} className="text-xs lg:text-sm">
             Сегодня
           </Button>
+          <Button onClick={() => setTaskDialogOpen(true)} size="sm">
+            <Plus className="h-4 w-4 mr-2" />
+            <span className="lg:inline">Новая задача</span>
+          </Button>
         </div>
-        <Button onClick={() => setTaskDialogOpen(true)} size="sm" className="w-full lg:w-auto">
-          <Plus className="h-4 w-4 mr-2" />
-          <span className="lg:inline">Новая задача</span>
-        </Button>
       </div>
 
       {/* Скроллируемый контейнер с месяцами */}
