@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState } from "react"
 import type { Task, Project, Executor } from "@/lib/supabase/types"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { ChevronLeft, ChevronRight, Plus, CheckCircle, Clock, AlertTriangle, Calendar } from "lucide-react"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { ChevronLeft, ChevronRight, Plus, Calendar, Clock, User, ChevronDown, ChevronUp } from "lucide-react"
 import { getWeekStart, getWeekEnd, getTasksForDate, formatDateShort, isSameDay } from "@/lib/date-utils"
 import { TaskDialog } from "../task-dialog"
 import { cn } from "@/lib/utils"
@@ -21,11 +21,9 @@ export function WeekView({ tasks, projects, executors, onTasksChange }: WeekView
   const [currentDate, setCurrentDate] = useState(new Date())
   const [taskDialogOpen, setTaskDialogOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
-  const [expandedDay, setExpandedDay] = useState<Date | null>(null)
-  const expandedCardRef = useRef<HTMLDivElement>(null)
+  const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set())
 
   const isMobile = useMediaQuery("(max-width: 640px)")
-  const isSmallMobile = useMediaQuery("(max-width: 380px)")
 
   const weekStart = getWeekStart(currentDate)
   const weekEnd = getWeekEnd(currentDate)
@@ -59,87 +57,120 @@ export function WeekView({ tasks, projects, executors, onTasksChange }: WeekView
     return `${formatDateShort(weekStart)} - ${formatDateShort(weekEnd)}`
   }
 
-  const handleDayClick = (date: Date) => {
-    if (isMobile) {
-      // На мобильных открываем расширенный вид
-      setExpandedDay(date)
-    } else {
-      // На десктопе открываем диалог создания задачи
-      setSelectedDate(date)
-      setTaskDialogOpen(true)
-    }
-  }
-
-  const handleAddTaskClick = (date: Date) => {
+  const handleCreateTask = (date: Date) => {
     setSelectedDate(date)
     setTaskDialogOpen(true)
-    setExpandedDay(null) // Закрываем расширенный вид
   }
 
-  const closeExpandedDay = () => {
-    setExpandedDay(null)
+  const toggleDayExpansion = (dateString: string) => {
+    const newExpanded = new Set(expandedDays)
+    if (newExpanded.has(dateString)) {
+      newExpanded.delete(dateString)
+    } else {
+      newExpanded.add(dateString)
+    }
+    setExpandedDays(newExpanded)
   }
 
-  // Закрытие расширенного дня при клике вне его
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (expandedCardRef.current && !expandedCardRef.current.contains(event.target as Node)) {
-        closeExpandedDay()
-      }
+  const getStatusColor = (status: Task["status"]) => {
+    switch (status) {
+      case "completed":
+        return "bg-green-100 border-green-300 text-green-800"
+      case "in_progress":
+        return "bg-blue-100 border-blue-300 text-blue-800"
+      case "pending_review":
+        return "bg-yellow-100 border-yellow-300 text-yellow-800"
+      case "waiting":
+        return "bg-gray-100 border-gray-300 text-gray-800"
+      case "extended":
+        return "bg-purple-100 border-purple-300 text-purple-800"
+      case "cancelled":
+        return "bg-red-100 border-red-300 text-red-800"
+      default:
+        return "bg-gray-100 border-gray-300 text-gray-800"
     }
-
-    if (expandedDay) {
-      document.addEventListener("mousedown", handleClickOutside)
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside)
-    }
-  }, [expandedDay])
+  }
 
   const getStatusIcon = (status: Task["status"]) => {
     switch (status) {
       case "completed":
-        return <CheckCircle className="h-3 w-3 text-green-500" />
+        return "✓"
       case "in_progress":
-        return <Clock className="h-3 w-3 text-blue-500" />
+        return "⏳"
       case "pending_review":
-        return <AlertTriangle className="h-3 w-3 text-yellow-500" />
+        return "👁"
       case "waiting":
-        return <Clock className="h-3 w-3 text-gray-500" />
+        return "⏸"
       case "extended":
-        return <Clock className="h-3 w-3 text-purple-500" />
+        return "📅"
       case "cancelled":
-        return <AlertTriangle className="h-3 w-3 text-red-500" />
+        return "❌"
       default:
-        return <Clock className="h-3 w-3 text-gray-500" />
+        return "📋"
     }
   }
 
-  // Названия дней недели
-  const dayNames = isMobile
-    ? isSmallMobile
-      ? ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
-      : ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
-    : ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
-
-  // Форматирование даты для мобильного вида
-  const formatMobileDate = (date: Date) => {
-    return date.getDate()
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
   }
 
-  // Получение количества задач для дня
-  const getTaskCount = (date: Date) => {
-    return getTasksForDate(tasks, date).length
+  const getDayName = (date: Date) => {
+    return date.toLocaleDateString("ru-RU", { weekday: "long" })
   }
 
-  // Получение проекта по ID
-  const getProjectById = (projectId: string) => {
-    return projects.find((p) => p.id === projectId)
+  const renderSubtasks = (parentTask: Task, dayTasks: Task[]) => {
+    const subtasks = dayTasks.filter((task) => task.parent_task_id === parentTask.id)
+    if (subtasks.length === 0) return null
+
+    return (
+      <div className="ml-4 mt-2 space-y-2">
+        {subtasks.map((subtask) => {
+          const project = projects.find((p) => p.id === subtask.project_id)
+          const executor = executors.find((e) => e.id === subtask.executor_id)
+
+          return (
+            <div
+              key={subtask.id}
+              className={cn("p-2 rounded-md border-l-2 text-sm", getStatusColor(subtask.status), "bg-opacity-50")}
+              style={{ borderLeftColor: project?.color_icon }}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs opacity-60">└</span>
+                    <h5 className="font-medium">{subtask.title}</h5>
+                    {subtask.is_urgent && (
+                      <span className="text-xs bg-red-100 text-red-800 px-1 py-0.5 rounded">!</span>
+                    )}
+                  </div>
+                  {subtask.description && <p className="text-xs mt-1 opacity-80">{subtask.description}</p>}
+                </div>
+                <span className="text-xs opacity-60">{getStatusIcon(subtask.status)}</span>
+              </div>
+
+              <div className="flex items-center justify-between mt-2 text-xs opacity-70">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-3 w-3" />
+                  <span>
+                    {formatTime(new Date(subtask.start_date))} - {formatTime(new Date(subtask.end_date))}
+                  </span>
+                </div>
+                {executor && (
+                  <div className="flex items-center gap-1">
+                    <User className="h-3 w-3" />
+                    <span>{executor.name}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
   }
 
   return (
-    <div className="relative">
+    <div className="h-full flex flex-col">
       {/* Заголовок недели */}
       <div className={cn("flex items-center justify-between mb-6", isMobile && "flex-col gap-2")}>
         <div className={cn("flex items-center space-x-2 sm:space-x-4", isMobile && "w-full justify-between")}>
@@ -154,282 +185,131 @@ export function WeekView({ tasks, projects, executors, onTasksChange }: WeekView
             Сегодня
           </Button>
         </div>
-        {!isMobile && (
-          <Button onClick={() => setTaskDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Новая задача
-          </Button>
-        )}
+        <Button onClick={() => setTaskDialogOpen(true)} className={cn(isMobile && "w-full")}>
+          <Plus className="h-4 w-4 mr-2" />
+          {isMobile ? "Задача" : "Новая задача"}
+        </Button>
       </div>
 
-      {/* Мобильный вид недели */}
-      {isMobile ? (
-        <div className="grid grid-cols-7 gap-1 sm:gap-2">
-          {/* Заголовки дней недели */}
-          {dayNames.map((name, index) => (
-            <div key={`header-${index}`} className="text-center font-medium text-xs text-gray-500 py-1">
-              {name}
-            </div>
-          ))}
+      {/* Вертикальный список дней */}
+      <div className="flex-1 overflow-y-auto space-y-4">
+        {weekDays.map((date) => {
+          const dayTasks = getTasksForDate(tasks, date)
+          const isToday = isSameDay(date, today)
+          const dateString = date.toISOString().split("T")[0]
+          const isExpanded = expandedDays.has(dateString)
+          const mainTasks = dayTasks.filter((task) => !task.parent_task_id)
 
-          {/* Ячейки дней */}
-          {weekDays.map((date) => {
-            const dayTasks = getTasksForDate(tasks, date)
-            const isToday = isSameDay(date, today)
-            const dayOfMonth = date.getDate()
-            const taskCount = dayTasks.length
-            const hasUrgentTasks = dayTasks.some((task) => task.is_urgent)
-
-            return (
-              <Card
-                key={date.toISOString()}
-                className={cn(
-                  "min-h-[100px] flex flex-col cursor-pointer touch-manipulation",
-                  isToday && "ring-2 ring-blue-500",
-                  hasUrgentTasks && "border-red-300",
-                )}
-                onClick={() => handleDayClick(date)}
+          return (
+            <Card key={dateString} className={cn("transition-all", isToday && "ring-2 ring-blue-500")}>
+              <CardHeader
+                className="pb-3 cursor-pointer"
+                onClick={() => dayTasks.length > 0 && toggleDayExpansion(dateString)}
               >
-                <CardContent className="p-1 sm:p-2 flex flex-col h-full">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center">
-                      <span className={cn("text-base font-medium", isToday && "text-blue-600")}>{dayOfMonth}</span>
-                      {isToday && <span className="ml-1 text-[10px] bg-blue-100 text-blue-800 px-1 rounded">•</span>}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Calendar className="h-5 w-5 text-blue-500" />
+                    <div>
+                      <h3 className={cn("text-lg font-semibold", isToday && "text-blue-600")}>
+                        {getDayName(date)}, {date.getDate()} {date.toLocaleDateString("ru-RU", { month: "long" })}
+                      </h3>
+                      {isToday && <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Сегодня</span>}
                     </div>
-                    {taskCount > 0 && (
-                      <span className={cn("text-xs font-medium", hasUrgentTasks ? "text-red-500" : "text-blue-500")}>
-                        {taskCount}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {dayTasks.length > 0 && (
+                      <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                        {dayTasks.length} {dayTasks.length === 1 ? "задача" : "задач"}
                       </span>
                     )}
-                  </div>
-
-                  <div className="flex-1 overflow-hidden">
-                    {taskCount === 0 ? (
-                      <div className="h-full flex items-end justify-center">
-                        <span className="text-[10px] text-gray-400">нет</span>
-                      </div>
-                    ) : (
-                      <div className="space-y-1">
-                        {dayTasks.slice(0, 2).map((task) => {
-                          const project = getProjectById(task.project_id)
-
-                          return (
-                            <div
-                              key={task.id}
-                              className="h-2 rounded-full"
-                              style={{ backgroundColor: project?.color_icon || "#cbd5e1" }}
-                            />
-                          )
-                        })}
-                        {taskCount > 2 && <div className="text-[10px] text-gray-500 text-center">+{taskCount - 2}</div>}
-                      </div>
+                    <Button variant="ghost" size="sm" onClick={() => handleCreateTask(date)}>
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                    {dayTasks.length > 0 && (
+                      <Button variant="ghost" size="sm">
+                        {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </Button>
                     )}
                   </div>
+                </div>
+              </CardHeader>
+
+              {dayTasks.length === 0 ? (
+                <CardContent className="pt-0">
+                  <p className="text-gray-500 text-center py-4">Задач на этот день нет</p>
                 </CardContent>
-              </Card>
-            )
-          })}
-        </div>
-      ) : (
-        // Десктопный вид недели (оригинальный)
-        <div className="grid grid-cols-7 gap-2">
-          {/* Заголовки дней недели */}
-          {dayNames.map((name, index) => (
-            <div key={`header-${index}`} className="text-center font-medium text-sm text-gray-500 py-2">
-              {name}
-            </div>
-          ))}
+              ) : (
+                isExpanded && (
+                  <CardContent className="pt-0">
+                    <div className="space-y-3">
+                      {mainTasks.map((task) => {
+                        const project = projects.find((p) => p.id === task.project_id)
+                        const executor = executors.find((e) => e.id === task.executor_id)
 
-          {/* Ячейки дней */}
-          {weekDays.map((date) => {
-            const dayTasks = getTasksForDate(tasks, date)
-            const isToday = isSameDay(date, today)
-            const dayOfMonth = date.getDate()
-
-            return (
-              <Card
-                key={date.toISOString()}
-                className={cn("min-h-[150px] flex flex-col", isToday && "ring-2 ring-blue-500")}
-              >
-                <CardContent className="p-2 flex flex-col h-full">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center">
-                      <span className={cn("text-lg font-medium", isToday && "text-blue-600")}>{dayOfMonth}</span>
-                      {isToday && (
-                        <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-1 py-0.5 rounded">Сегодня</span>
-                      )}
-                    </div>
-                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleDayClick(date)}>
-                      <Plus className="h-3 w-3" />
-                    </Button>
-                  </div>
-
-                  <div className="flex-1 overflow-y-auto">
-                    {dayTasks.length === 0 ? (
-                      <p className="text-xs text-gray-400">Нет задач</p>
-                    ) : (
-                      <div className="space-y-1">
-                        {dayTasks.map((task) => {
-                          const project = projects.find((p) => p.id === task.project_id)
-                          const executor = executors.find((e) => e.id === task.executor_id)
-
-                          return (
+                        return (
+                          <div key={task.id}>
                             <div
-                              key={task.id}
-                              className="flex items-center p-1 rounded-md border-l-2 bg-gray-50 text-xs"
+                              className={cn("p-3 rounded-lg border-l-4", getStatusColor(task.status))}
                               style={{ borderLeftColor: project?.color_icon }}
                             >
-                              {getStatusIcon(task.status)}
-                              <div className="ml-1 truncate">
-                                {task.title}
-                                {task.is_urgent && (
-                                  <span className="ml-1 inline-block bg-red-100 text-red-800 px-1 rounded text-[10px]">
-                                    !
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <h4 className="font-medium">{task.title}</h4>
+                                    {task.is_urgent && (
+                                      <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full">
+                                        Срочно
+                                      </span>
+                                    )}
+                                  </div>
+                                  {task.description && <p className="text-sm text-gray-600 mb-2">{task.description}</p>}
+                                </div>
+                                <span className="text-sm font-medium">{getStatusIcon(task.status)}</span>
+                              </div>
+
+                              <div className="flex items-center justify-between text-sm text-gray-600">
+                                <div className="flex items-center gap-2">
+                                  <Clock className="h-4 w-4" />
+                                  <span>
+                                    {formatTime(new Date(task.start_date))} - {formatTime(new Date(task.end_date))}
                                   </span>
+                                </div>
+                                {executor && (
+                                  <div className="flex items-center gap-1">
+                                    <User className="h-4 w-4" />
+                                    <span>{executor.name}</span>
+                                  </div>
                                 )}
                               </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
-      )}
 
-      {/* Расширенный вид дня при клике на мобильном */}
-      {expandedDay && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={closeExpandedDay}>
-          <div
-            ref={expandedCardRef}
-            className="bg-white rounded-lg w-full max-w-md max-h-[80vh] overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-4 border-b">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <Calendar className="h-5 w-5 mr-2 text-blue-500" />
-                  <h3 className="text-lg font-semibold">
-                    {expandedDay.toLocaleDateString("ru-RU", {
-                      weekday: "long",
-                      day: "numeric",
-                      month: "long",
-                    })}
-                    {isSameDay(expandedDay, today) && (
-                      <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Сегодня</span>
-                    )}
-                  </h3>
-                </div>
-                <Button variant="ghost" size="sm" className="h-8 w-8" onClick={closeExpandedDay}>
-                  &times;
-                </Button>
-              </div>
-            </div>
-
-            <div className="p-4 overflow-y-auto max-h-[calc(80vh-140px)]">
-              {getTasksForDate(tasks, expandedDay).length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <Calendar className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                  <p>Нет задач на этот день</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {getTasksForDate(tasks, expandedDay).map((task) => {
-                    const project = projects.find((p) => p.id === task.project_id)
-                    const executor = executors.find((e) => e.id === task.executor_id)
-
-                    return (
-                      <div
-                        key={task.id}
-                        className="p-3 border rounded-lg"
-                        style={{ borderLeftWidth: "4px", borderLeftColor: project?.color_icon }}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h4 className="font-medium flex items-center">
-                              {task.title}
-                              {task.is_urgent && (
-                                <span className="ml-2 text-xs bg-red-100 text-red-800 px-1 py-0.5 rounded">Срочно</span>
+                              {project && (
+                                <div className="mt-2 text-sm text-gray-600">
+                                  Проект: <span className="font-medium">{project.name}</span>
+                                </div>
                               )}
-                            </h4>
-                            {project && <p className="text-sm text-gray-500 mt-1">{project.name}</p>}
-                          </div>
-                          <div className="flex items-center">
-                            {getStatusIcon(task.status)}
-                            <span className="text-xs ml-1 text-gray-500">
-                              {task.status === "completed"
-                                ? "Завершено"
-                                : task.status === "in_progress"
-                                  ? "В работе"
-                                  : task.status === "pending_review"
-                                    ? "На проверке"
-                                    : task.status === "waiting"
-                                      ? "Ожидание"
-                                      : task.status === "extended"
-                                        ? "Продлено"
-                                        : task.status === "cancelled"
-                                          ? "Отменено"
-                                          : ""}
-                            </span>
-                          </div>
-                        </div>
+                            </div>
 
-                        {task.description && <p className="text-sm mt-2 text-gray-600">{task.description}</p>}
-
-                        {executor && (
-                          <div className="mt-3 text-xs text-gray-500 flex items-center">
-                            <span
-                              className="inline-block h-3 w-3 rounded-full mr-1"
-                              style={{ backgroundColor: executor.color_icon }}
-                            ></span>
-                            {executor.name}
+                            {/* Подзадачи */}
+                            {renderSubtasks(task, dayTasks)}
                           </div>
-                        )}
-
-                        <div className="mt-2 text-xs text-gray-400">
-                          {new Date(task.start_date).toLocaleDateString("ru-RU")}{" "}
-                          {new Date(task.start_date).toLocaleTimeString("ru-RU", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}{" "}
-                          - {new Date(task.due_date).toLocaleDateString("ru-RU")}{" "}
-                          {new Date(task.due_date).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
+                        )
+                      })}
+                    </div>
+                  </CardContent>
+                )
               )}
-            </div>
-
-            {/* Кнопка добавления задачи */}
-            <div className="p-4 border-t">
-              <Button onClick={() => handleAddTaskClick(expandedDay)} className="w-full" size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Добавить задачу
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+            </Card>
+          )
+        })}
+      </div>
 
       <TaskDialog
-        open={taskDialogOpen && selectedDate !== null}
-        onOpenChange={(open) => {
-          setTaskDialogOpen(open)
-          if (!open) setSelectedDate(null)
-        }}
-        onSuccess={() => {
-          onTasksChange()
-          setSelectedDate(null)
-        }}
+        open={taskDialogOpen}
+        onOpenChange={setTaskDialogOpen}
+        onSuccess={onTasksChange}
         projects={projects}
         executors={executors}
-        initialDate={selectedDate || undefined}
+        initialDate={selectedDate}
       />
     </div>
   )

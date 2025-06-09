@@ -28,6 +28,7 @@ export function MonthView({ tasks, projects, executors, onTasksChange }: MonthVi
   const [expandedDate, setExpandedDate] = useState<Date | null>(null)
   const [months, setMonths] = useState<MonthData[]>([])
   const [currentVisibleMonth, setCurrentVisibleMonth] = useState(new Date())
+  const [isInitialLoad, setIsInitialLoad] = useState(true)
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const monthRefs = useRef<Map<string, HTMLDivElement>>(new Map())
@@ -52,6 +53,17 @@ export function MonthView({ tasks, projects, executors, onTasksChange }: MonthVi
 
     setMonths(initialMonths)
   }, [])
+
+  // Автоматический скролл к текущему месяцу при загрузке
+  useEffect(() => {
+    if (months.length > 0 && isInitialLoad) {
+      // Небольшая задержка для рендеринга элементов
+      setTimeout(() => {
+        scrollToToday()
+        setIsInitialLoad(false)
+      }, 100)
+    }
+  }, [months, isInitialLoad])
 
   // Intersection Observer для определения видимого месяца
   useEffect(() => {
