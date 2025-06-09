@@ -109,6 +109,11 @@ export function ProjectsPage({ user, projects, executors, onDataChange }: Projec
     setDeleteDialogOpen(true)
   }
 
+  const handleProjectHeaderClick = (project: Project) => {
+    setSelectedProject(project)
+    setProjectDialogOpen(true)
+  }
+
   const handleCreateTask = useCallback((e: React.MouseEvent, project: Project, parentTask?: Task) => {
     e.stopPropagation()
     console.log("Creating task for project:", project.name, "with ID:", project.id)
@@ -430,31 +435,46 @@ export function ProjectsPage({ user, projects, executors, onDataChange }: Projec
             return (
               <Card key={project.id} className="overflow-hidden">
                 <Collapsible open={isExpanded} onOpenChange={() => toggleProject(project.id)}>
-                  <CardHeader className="cursor-pointer px-4 py-3 sm:px-6" onClick={() => toggleProject(project.id)}>
+                  <CardHeader
+                    className="cursor-pointer px-4 py-3 sm:px-6 hover:bg-gray-50 transition-colors"
+                    onClick={() => handleProjectHeaderClick(project)}
+                  >
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <div className="p-1 h-6 w-6 flex items-center justify-center flex-shrink-0">
+                          <div
+                            className="p-1 h-6 w-6 flex items-center justify-center flex-shrink-0 hover:bg-gray-200 rounded"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              toggleProject(project.id)
+                            }}
+                          >
                             {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                           </div>
                           <CardTitle className="text-lg truncate">{project.name}</CardTitle>
                         </div>
                         <CardDescription className="mt-1 ml-8 line-clamp-2">{project.description}</CardDescription>
 
-                        {/* Прогресс-бар проекта */}
-                        <div className="ml-8 mt-3 space-y-2">
+                        {/* Прогресс-бар проекта - всегда видимый */}
+                        <div className="ml-8 mt-2 space-y-1">
                           <div className="flex items-center justify-between text-sm">
                             <span className="text-gray-600">Прогресс выполнения</span>
                             <span className="font-medium">{stats.progress}%</span>
                           </div>
                           <Progress value={stats.progress} className="h-2" />
-                          <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-x-2 gap-y-1 text-xs text-gray-500">
-                            <span>Всего: {stats.total}</span>
-                            <span>Завершено: {stats.completed}</span>
-                            <span>В работе: {stats.inProgress}</span>
-                            <span>Ожидание: {stats.pending}</span>
-                          </div>
                         </div>
+
+                        {/* Детальная статистика - только при развернутом состоянии */}
+                        {isExpanded && (
+                          <div className="ml-8 mt-1">
+                            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-x-3 gap-y-0 text-xs text-gray-500">
+                              <span>Всего: {stats.total}</span>
+                              <span>Завершено: {stats.completed}</span>
+                              <span>В работе: {stats.inProgress}</span>
+                              <span>Ожидание: {stats.pending}</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
                       <div className="flex gap-1 ml-2 flex-shrink-0">
                         <Button
@@ -477,17 +497,18 @@ export function ProjectsPage({ user, projects, executors, onDataChange }: Projec
                     </div>
                   </CardHeader>
 
-                  <CardContent className="px-4 pb-3 sm:px-6">
-                    <div className="text-sm mb-4 ml-8">
-                      <p>
-                        <strong>Дата начала:</strong> {formatDate(project.start_date)}
-                      </p>
-                      <p>
-                        <strong>Дата окончания:</strong> {formatDate(project.planned_finish)}
-                      </p>
-                    </div>
+                  <CollapsibleContent>
+                    <CardContent className="px-4 pb-3 sm:px-6">
+                      {/* Даты проекта - только при развернутом состоянии */}
+                      <div className="text-sm mb-4 ml-8 space-y-1">
+                        <p>
+                          <strong>Дата начала:</strong> {formatDate(project.start_date)}
+                        </p>
+                        <p>
+                          <strong>Дата окончания:</strong> {formatDate(project.planned_finish)}
+                        </p>
+                      </div>
 
-                    <CollapsibleContent>
                       <div className="border-t pt-4">
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="font-medium">Задачи проекта</h4>
@@ -525,8 +546,8 @@ export function ProjectsPage({ user, projects, executors, onDataChange }: Projec
                           </div>
                         )}
                       </div>
-                    </CollapsibleContent>
-                  </CardContent>
+                    </CardContent>
+                  </CollapsibleContent>
                 </Collapsible>
               </Card>
             )
