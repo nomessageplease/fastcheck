@@ -2,7 +2,6 @@
 
 import type { User } from "@supabase/supabase-js"
 import { supabase } from "@/lib/supabase/client"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,10 +28,6 @@ export function Header({ user, currentPage, loadData }: HeaderProps) {
     router.refresh()
   }
 
-  const getInitials = (email: string) => {
-    return email.substring(0, 2).toUpperCase()
-  }
-
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
       <div className="container mx-auto px-4 py-3 flex justify-between items-center">
@@ -54,10 +49,7 @@ export function Header({ user, currentPage, loadData }: HeaderProps) {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={user?.user_metadata?.avatar_url || "/placeholder.svg"} />
-                  <AvatarFallback>{user?.email ? getInitials(user.email) : "U"}</AvatarFallback>
-                </Avatar>
+                <Settings className="h-5 w-5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">

@@ -201,7 +201,7 @@ export function WeekView({ tasks, projects, executors, onTasksChange }: WeekView
           const mainTasks = dayTasks.filter((task) => !task.parent_task_id)
 
           return (
-            <Card key={dateString} className={cn("transition-all", isToday && "ring-2 ring-blue-500")}>
+            <Card key={dateString} className={cn("transition-all", isToday && "ring-2 ring-blue-500 ring-inset")}>
               <CardHeader
                 className="pb-3 cursor-pointer px-3 sm:px-6"
                 onClick={() => dayTasks.length > 0 && toggleDayExpansion(dateString)}
