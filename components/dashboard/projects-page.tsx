@@ -7,6 +7,7 @@ import type { User as SupabaseUser } from "@supabase/supabase-js"
 import type { Project, Executor, Task } from "@/lib/supabase/types"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Progress } from "@/components/ui/progress"
 import { ProjectDialog } from "./project-dialog"
 import { TaskDialog } from "./task-dialog"
 import { Plus, Edit, Trash2, ChevronDown, ChevronRight, Calendar, User, Clock, AlertTriangle } from "lucide-react"
@@ -69,6 +70,32 @@ export function ProjectsPage({ user, projects, executors, onDataChange }: Projec
       updateTaskUrgencyStatuses()
     }
   }, [projectTasks, user])
+
+  // Функция для расчета прогресса проекта
+  const calculateProjectProgress = (projectId: string) => {
+    const tasks = projectTasks[projectId] || []
+    if (tasks.length === 0) return 0
+
+    const completedTasks = tasks.filter((task) => task.status === "completed").length
+    return Math.round((completedTasks / tasks.length) * 100)
+  }
+
+  // Функция для получения статистики проекта
+  const getProjectStats = (projectId: string) => {
+    const tasks = projectTasks[projectId] || []
+    const totalTasks = tasks.length
+    const completedTasks = tasks.filter((task) => task.status === "completed").length
+    const inProgressTasks = tasks.filter((task) => task.status === "in_progress").length
+    const pendingTasks = tasks.filter((task) => task.status === "waiting").length
+
+    return {
+      total: totalTasks,
+      completed: completedTasks,
+      inProgress: inProgressTasks,
+      pending: pendingTasks,
+      progress: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
+    }
+  }
 
   const handleEditProject = (e: React.MouseEvent, project: Project) => {
     e.stopPropagation()
@@ -398,6 +425,7 @@ export function ProjectsPage({ user, projects, executors, onDataChange }: Projec
             const tasks = projectTasks[project.id] || []
             const mainTasks = getMainTasks(tasks)
             const isLoading = loadingTasks.has(project.id)
+            const stats = getProjectStats(project.id)
 
             return (
               <Card key={project.id}>
@@ -412,6 +440,21 @@ export function ProjectsPage({ user, projects, executors, onDataChange }: Projec
                           <CardTitle className="text-lg">{project.name}</CardTitle>
                         </div>
                         <CardDescription className="mt-1 ml-8">{project.description}</CardDescription>
+
+                        {/* Прогресс-бар проекта */}
+                        <div className="ml-8 mt-3 space-y-2">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-gray-600">Прогресс выполнения</span>
+                            <span className="font-medium">{stats.progress}%</span>
+                          </div>
+                          <Progress value={stats.progress} className="h-2" />
+                          <div className="flex items-center gap-4 text-xs text-gray-500">
+                            <span>Всего задач: {stats.total}</span>
+                            <span>Завершено: {stats.completed}</span>
+                            <span>В работе: {stats.inProgress}</span>
+                            <span>Ожидание: {stats.pending}</span>
+                          </div>
+                        </div>
                       </div>
                       <div className="flex gap-1 ml-2 flex-shrink-0">
                         <Button
