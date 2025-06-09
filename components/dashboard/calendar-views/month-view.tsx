@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import type { Task, Project, Executor } from "@/lib/supabase/types"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Plus } from "lucide-react"
+import { Plus, X, Clock, User } from "lucide-react"
 import { getDaysInMonth, getFirstDayOfMonth, getTasksForDate, isSameDay } from "@/lib/date-utils"
 import { TaskDialog } from "../task-dialog"
 import { cn } from "@/lib/utils"
@@ -25,11 +25,9 @@ interface MonthData {
 export function MonthView({ tasks, projects, executors, onTasksChange }: MonthViewProps) {
   const [taskDialogOpen, setTaskDialogOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
-  const [zoomedDate, setZoomedDate] = useState<Date | null>(null)
-  const [isZooming, setIsZooming] = useState(false)
-  const [touchTimer, setTouchTimer] = useState<NodeJS.Timeout | null>(null)
-  const [currentVisibleMonth, setCurrentVisibleMonth] = useState(new Date())
+  const [expandedDate, setExpandedDate] = useState<Date | null>(null)
   const [months, setMonths] = useState<MonthData[]>([])
+  const [currentVisibleMonth, setCurrentVisibleMonth] = useState(new Date())
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const monthRefs = useRef<Map<string, HTMLDivElement>>(new Map())
@@ -161,8 +159,13 @@ export function MonthView({ tasks, projects, executors, onTasksChange }: MonthVi
   }
 
   const handleDateClick = (date: Date) => {
+    setExpandedDate(date)
+  }
+
+  const handleCreateTask = (date: Date) => {
     setSelectedDate(date)
     setTaskDialogOpen(true)
+    setExpandedDate(null)
   }
 
   const getStatusColor = (status: Task["status"]) => {
@@ -184,37 +187,27 @@ export function MonthView({ tasks, projects, executors, onTasksChange }: MonthVi
     }
   }
 
-  const handleTouchStart = (date: Date) => {
-    const timer = setTimeout(() => {
-      setZoomedDate(date)
-      setIsZooming(true)
-      if (navigator.vibrate) {
-        navigator.vibrate(50)
-      }
-    }, 500)
-    setTouchTimer(timer)
-  }
-
-  const handleTouchEnd = () => {
-    if (touchTimer) {
-      clearTimeout(touchTimer)
-      setTouchTimer(null)
-    }
-    if (isZooming) {
-      setTimeout(() => {
-        setIsZooming(false)
-        setZoomedDate(null)
-      }, 100)
+  const getStatusIcon = (status: Task["status"]) => {
+    switch (status) {
+      case "completed":
+        return "✓"
+      case "in_progress":
+        return "⏳"
+      case "pending_review":
+        return "👁"
+      case "waiting":
+        return "⏸"
+      case "extended":
+        return "📅"
+      case "cancelled":
+        return "❌"
+      default:
+        return "📋"
     }
   }
 
-  const handleTouchCancel = () => {
-    if (touchTimer) {
-      clearTimeout(touchTimer)
-      setTouchTimer(null)
-    }
-    setIsZooming(false)
-    setZoomedDate(null)
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
   }
 
   const renderMonth = (monthData: MonthData) => {
@@ -289,104 +282,48 @@ export function MonthView({ tasks, projects, executors, onTasksChange }: MonthVi
                   "min-h-[60px] sm:min-h-[80px] lg:min-h-[120px] cursor-pointer transition-all duration-300 hover:bg-gray-50",
                   !day.isCurrentMonth && "bg-gray-50 opacity-50",
                   isToday && "ring-2 ring-blue-500",
-                  zoomedDate &&
-                    isSameDay(day.date, zoomedDate) &&
-                    isZooming &&
-                    "fixed inset-4 z-50 min-h-[60vh] shadow-2xl ring-4 ring-blue-500 bg-white",
                 )}
-                onTouchStart={() => handleTouchStart(day.date)}
-                onTouchEnd={handleTouchEnd}
-                onTouchCancel={handleTouchCancel}
-                onClick={() => !isZooming && handleDateClick(day.date)}
-                style={{
-                  zIndex: zoomedDate && isSameDay(day.date, zoomedDate) && isZooming ? 9999 : "auto",
-                }}
+                onClick={() => handleDateClick(day.date)}
               >
-                <CardContent
-                  className={cn(
-                    "p-1 sm:p-2",
-                    zoomedDate && isSameDay(day.date, zoomedDate) && isZooming && "p-6 overflow-y-auto",
-                  )}
-                >
+                <CardContent className="p-1 sm:p-2">
                   <div
                     className={cn(
                       "text-xs sm:text-sm mb-1",
                       !day.isCurrentMonth && "text-gray-400",
                       isToday && "font-bold",
-                      zoomedDate &&
-                        isSameDay(day.date, zoomedDate) &&
-                        isZooming &&
-                        "text-2xl font-bold mb-4 text-center",
                     )}
                   >
-                    {zoomedDate && isSameDay(day.date, zoomedDate) && isZooming
-                      ? day.date.toLocaleDateString("ru-RU", { weekday: "long", day: "numeric", month: "long" })
-                      : day.date.getDate()}
+                    {day.date.getDate()}
                   </div>
 
-                  <div
-                    className={cn(
-                      "space-y-0.5 max-h-[30px] sm:max-h-[50px] lg:max-h-[80px] overflow-y-auto",
-                      zoomedDate && isSameDay(day.date, zoomedDate) && isZooming && "max-h-none space-y-3",
-                    )}
-                  >
-                    {dayTasks
-                      .slice(0, zoomedDate && isSameDay(day.date, zoomedDate) && isZooming ? dayTasks.length : 2)
-                      .map((task) => {
-                        const project = projects.find((p) => p.id === task.project_id)
-                        return (
-                          <div
-                            key={task.id}
-                            className={cn(
-                              "text-[8px] sm:text-[10px] lg:text-xs p-0.5 rounded border-l-2 truncate flex items-center gap-1",
-                              getStatusColor(task.status),
-                              zoomedDate &&
-                                isSameDay(day.date, zoomedDate) &&
-                                isZooming &&
-                                "text-sm p-3 rounded-lg shadow-sm",
-                            )}
-                            style={{ borderLeftColor: project?.color_icon }}
-                            title={task.title}
-                          >
-                            <span
-                              className={cn(
-                                "flex-1 truncate",
-                                zoomedDate &&
-                                  isSameDay(day.date, zoomedDate) &&
-                                  isZooming &&
-                                  "truncate-none font-medium",
-                              )}
-                            >
-                              {task.title}
+                  <div className="space-y-0.5 max-h-[30px] sm:max-h-[50px] lg:max-h-[80px] overflow-y-auto">
+                    {dayTasks.slice(0, 2).map((task) => {
+                      const project = projects.find((p) => p.id === task.project_id)
+                      return (
+                        <div
+                          key={task.id}
+                          className={cn(
+                            "text-[8px] sm:text-[10px] lg:text-xs p-0.5 rounded border-l-2 truncate flex items-center gap-1",
+                            getStatusColor(task.status),
+                          )}
+                          style={{ borderLeftColor: project?.color_icon }}
+                          title={task.title}
+                        >
+                          <span className="flex-1 truncate">{task.title}</span>
+                          {task.is_urgent && (
+                            <span className="text-[6px] sm:text-[8px] lg:text-[10px] bg-gray-200 text-gray-800 px-0.5 rounded border border-gray-400 flex-shrink-0">
+                              !
                             </span>
-                            {task.is_urgent && (
-                              <span
-                                className={cn(
-                                  "text-[6px] sm:text-[8px] lg:text-[10px] bg-gray-200 text-gray-800 px-0.5 rounded border border-gray-400 flex-shrink-0",
-                                  zoomedDate && isSameDay(day.date, zoomedDate) && isZooming && "text-xs px-2 py-1",
-                                )}
-                              >
-                                !
-                              </span>
-                            )}
-                            {zoomedDate && isSameDay(day.date, zoomedDate) && isZooming && task.description && (
-                              <div className="text-xs text-gray-500 mt-1">{task.description}</div>
-                            )}
-                          </div>
-                        )
-                      })}
-                    {dayTasks.length > 2 && !(zoomedDate && isSameDay(day.date, zoomedDate) && isZooming) && (
+                          )}
+                        </div>
+                      )
+                    })}
+                    {dayTasks.length > 2 && (
                       <div className="text-[8px] sm:text-[10px] lg:text-xs text-gray-500 text-center">
                         +{dayTasks.length - 2} еще
                       </div>
                     )}
                   </div>
-
-                  {zoomedDate && isSameDay(day.date, zoomedDate) && isZooming && (
-                    <div className="mt-4 text-center">
-                      <div className="text-xs text-gray-500">Отпустите для возврата к календарю</div>
-                    </div>
-                  )}
                 </CardContent>
               </Card>
             )
@@ -395,14 +332,6 @@ export function MonthView({ tasks, projects, executors, onTasksChange }: MonthVi
       </div>
     )
   }
-
-  useEffect(() => {
-    return () => {
-      if (touchTimer) {
-        clearTimeout(touchTimer)
-      }
-    }
-  }, [touchTimer])
 
   return (
     <div className="h-full flex flex-col">
@@ -432,23 +361,120 @@ export function MonthView({ tasks, projects, executors, onTasksChange }: MonthVi
         <div className="px-1">{months.map(renderMonth)}</div>
       </div>
 
+      {/* Расширенный вид дня */}
+      {expandedDate && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden">
+            {/* Заголовок */}
+            <div className="flex items-center justify-between p-4 border-b bg-gray-50">
+              <h3 className="text-lg font-semibold">
+                {expandedDate.toLocaleDateString("ru-RU", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
+              </h3>
+              <Button variant="ghost" size="sm" onClick={() => setExpandedDate(null)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {/* Список задач */}
+            <div className="p-4 overflow-y-auto max-h-[50vh]">
+              {(() => {
+                const dayTasks = getTasksForDate(tasks, expandedDate)
+                if (dayTasks.length === 0) {
+                  return (
+                    <div className="text-center text-gray-500 py-8">
+                      <div className="text-4xl mb-2">📅</div>
+                      <p>Задач на этот день нет</p>
+                    </div>
+                  )
+                }
+
+                return (
+                  <div className="space-y-3">
+                    {dayTasks.map((task) => {
+                      const project = projects.find((p) => p.id === task.project_id)
+                      const executor = executors.find((e) => e.id === task.executor_id)
+
+                      return (
+                        <div
+                          key={task.id}
+                          className={cn(
+                            "p-3 rounded-lg border-l-4 bg-gray-50",
+                            getStatusColor(task.status).replace("border-", "border-l-"),
+                          )}
+                          style={{ borderLeftColor: project?.color_icon }}
+                        >
+                          <div className="flex items-start justify-between mb-2">
+                            <h4 className="font-medium text-sm">{task.title}</h4>
+                            <div className="flex items-center gap-1">
+                              {task.is_urgent && (
+                                <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full">Срочно</span>
+                              )}
+                              <span className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full flex items-center gap-1">
+                                {getStatusIcon(task.status)}
+                                {task.status === "completed" && "Выполнено"}
+                                {task.status === "in_progress" && "В работе"}
+                                {task.status === "pending_review" && "На проверке"}
+                                {task.status === "waiting" && "Ожидание"}
+                                {task.status === "extended" && "Продлено"}
+                                {task.status === "cancelled" && "Отменено"}
+                              </span>
+                            </div>
+                          </div>
+
+                          {task.description && <p className="text-xs text-gray-600 mb-2">{task.description}</p>}
+
+                          <div className="flex items-center justify-between text-xs text-gray-500">
+                            <div className="flex items-center gap-2">
+                              <Clock className="h-3 w-3" />
+                              <span>
+                                {formatTime(new Date(task.start_date))} - {formatTime(new Date(task.end_date))}
+                              </span>
+                            </div>
+                            {executor && (
+                              <div className="flex items-center gap-1">
+                                <User className="h-3 w-3" />
+                                <span>{executor.name}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {project && (
+                            <div className="mt-2 text-xs text-gray-500">
+                              Проект: <span className="font-medium">{project.name}</span>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
+            </div>
+
+            {/* Кнопка добавления задачи */}
+            <div className="p-4 border-t bg-gray-50">
+              <Button onClick={() => handleCreateTask(expandedDate)} className="w-full">
+                <Plus className="h-4 w-4 mr-2" />
+                Добавить задачу
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <TaskDialog
         open={taskDialogOpen}
         onOpenChange={setTaskDialogOpen}
         onSuccess={onTasksChange}
         projects={projects}
         executors={executors}
+        initialDate={selectedDate}
       />
-
-      {isZooming && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-40"
-          onClick={() => {
-            setIsZooming(false)
-            setZoomedDate(null)
-          }}
-        />
-      )}
     </div>
   )
 }
