@@ -25,7 +25,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Loader2, Plus, Calendar, AlertTriangle } from "lucide-react"
 import { ExecutorDialog } from "./executor-dialog"
 import { ProjectDialog } from "./project-dialog"
-import DateTimeScrollPicker from "@/components/ui/date-time-scroll-picker"
+import SimpleDateTimePicker from "@/components/ui/simple-datetime-picker"
 
 interface TaskDialogProps {
   open: boolean
@@ -567,7 +567,13 @@ export function TaskDialog({
                 <Label className="text-base font-medium">Период выполнения</Label>
               </div>
 
-              <DateTimeScrollPicker initialStart={startDate} initialEnd={endDate} onChange={handleDateTimeChange} />
+              <SimpleDateTimePicker
+                initialStart={startDate}
+                initialEnd={endDate}
+                onChange={handleDateTimeChange}
+                minDate={dateConstraints.startConstraint || undefined}
+                maxDate={dateConstraints.endConstraint || undefined}
+              />
             </div>
 
             <div className="flex items-center space-x-2">

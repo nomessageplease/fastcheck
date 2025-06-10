@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2 } from "lucide-react"
-import DateTimeScrollPicker from "@/components/ui/date-time-scroll-picker"
+import SimpleDateTimePicker from "@/components/ui/simple-datetime-picker"
 
 interface ProjectDialogProps {
   open: boolean
@@ -97,6 +97,17 @@ export function ProjectDialog({ open, onOpenChange, onSuccess, project, executor
       const { data: userData } = await supabase.auth.getUser()
       if (!userData.user) {
         throw new Error("Пользователь не авторизован")
+      }
+
+      // Проверяем корректность дат
+      if (startDate >= endDate) {
+        toast({
+          title: "Ошибка",
+          description: "Дата окончания должна быть позже даты начала",
+          variant: "destructive",
+        })
+        setLoading(false)
+        return
       }
 
       const projectData = {
@@ -194,7 +205,7 @@ export function ProjectDialog({ open, onOpenChange, onSuccess, project, executor
 
             <div className="grid gap-2">
               <Label>Сроки проекта</Label>
-              <DateTimeScrollPicker initialStart={startDate} initialEnd={endDate} onChange={handleDateTimeChange} />
+              <SimpleDateTimePicker initialStart={startDate} initialEnd={endDate} onChange={handleDateTimeChange} />
             </div>
           </div>
 
