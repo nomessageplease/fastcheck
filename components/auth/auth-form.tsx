@@ -18,6 +18,8 @@ export function AuthForm() {
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
+  const [showForgotPassword, setShowForgotPassword] = useState(false)
+  const [resetEmail, setResetEmail] = useState("")
 
   const validateForm = () => {
     if (!email || !password) {
@@ -132,6 +134,45 @@ export function AuthForm() {
     }
   }
 
+  const handleResetPassword = async () => {
+    if (!resetEmail) {
+      setMessage({ type: "error", text: "Введите email для восстановления" })
+      return
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(resetEmail)) {
+      setMessage({ type: "error", text: "Введите корректный email" })
+      return
+    }
+
+    setLoading(true)
+    setMessage(null)
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      })
+
+      if (error) throw error
+
+      setMessage({
+        type: "success",
+        text: "Ссылка для восстановления пароля отправлена на ваш email",
+      })
+      setShowForgotPassword(false)
+      setResetEmail("")
+    } catch (error: any) {
+      console.error("Reset password error:", error)
+      setMessage({
+        type: "error",
+        text: error.message || "Ошибка при отправке ссылки восстановления",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <Card className="w-full max-w-md">
@@ -205,6 +246,59 @@ export function AuthForm() {
                     "Войти"
                   )}
                 </Button>
+                <div className="text-center mt-4">
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="text-sm text-gray-600 hover:text-gray-800"
+                    onClick={() => setShowForgotPassword(!showForgotPassword)}
+                    disabled={loading}
+                  >
+                    Забыли пароль?
+                  </Button>
+                </div>
+
+                {showForgotPassword && (
+                  <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                    <h3 className="text-sm font-medium mb-2">Восстановление пароля</h3>
+                    <p className="text-xs text-gray-600 mb-3">Введите ваш email для получения ссылки восстановления</p>
+                    <div className="space-y-3">
+                      <Input
+                        type="email"
+                        placeholder="Ваш email"
+                        value={resetEmail}
+                        onChange={(e) => setResetEmail(e.target.value)}
+                        disabled={loading}
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={handleResetPassword}
+                          disabled={loading || !resetEmail}
+                          size="sm"
+                          className="flex-1"
+                        >
+                          {loading ? (
+                            <>
+                              <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                              Отправка...
+                            </>
+                          ) : (
+                            "Отправить"
+                          )}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowForgotPassword(false)}
+                          disabled={loading}
+                        >
+                          Отмена
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </form>
             </TabsContent>
 
