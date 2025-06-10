@@ -25,18 +25,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Loader2, Plus, Calendar, AlertTriangle } from "lucide-react"
 import { ExecutorDialog } from "./executor-dialog"
 import { ProjectDialog } from "./project-dialog"
-import HierarchicalDateTimeSlider from "@/components/ui/hierarchical-datetime-slider"
-
-// Функция для корректного форматирования даты для datetime-local input
-const formatDateTimeLocal = (date: Date): string => {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, "0")
-  const day = String(date.getDate()).padStart(2, "0")
-  const hours = String(date.getHours()).padStart(2, "0")
-  const minutes = String(date.getMinutes()).padStart(2, "0")
-
-  return `${year}-${month}-${day}T${hours}:${minutes}`
-}
+import DateTimeScrollPicker from "@/components/ui/date-time-scroll-picker"
 
 interface TaskDialogProps {
   open: boolean
@@ -73,12 +62,10 @@ export function TaskDialog({
     project_id: initialProjectId || "",
     parent_id: parentTask?.id || null,
     executor_id: null as string | null,
-    start_datetime: "",
-    due_datetime: "",
     is_urgent: false,
   })
 
-  // Состояния для DateTimeRangeSlider
+  // Состояния для дат
   const [startDate, setStartDate] = useState<Date>(new Date())
   const [endDate, setEndDate] = useState<Date>(new Date())
 
@@ -181,30 +168,17 @@ export function TaskDialog({
     }
   }, [startDate, endDate, siblingTasks, task])
 
-  // Логируем props при монтировании
-  useEffect(() => {
-    console.log("TaskDialog mounted with props:", {
-      open,
-      task: task?.id,
-      parentTask: parentTask?.id,
-      initialProjectId,
-      projectsCount: projects.length,
-    })
-  }, [])
-
   // Инициализация формы при открытии диалога
   useEffect(() => {
     if (open) {
-      console.log("TaskDialog opened with initialProjectId:", initialProjectId)
-
       if (task) {
         // Редактирование существующей задачи
-        const startDate = new Date(task.start_date)
-        const dueDate = new Date(task.due_date)
+        const taskStartDate = new Date(task.start_date)
+        const taskDueDate = new Date(task.due_date)
 
         // Проверяем валидность дат
-        const validStartDate = !isNaN(startDate.getTime()) ? startDate : new Date()
-        const validDueDate = !isNaN(dueDate.getTime()) ? dueDate : new Date()
+        const validStartDate = !isNaN(taskStartDate.getTime()) ? taskStartDate : new Date()
+        const validDueDate = !isNaN(taskDueDate.getTime()) ? taskDueDate : new Date()
 
         setFormData({
           title: task.title,
@@ -212,12 +186,10 @@ export function TaskDialog({
           project_id: task.project_id,
           parent_id: task.parent_id,
           executor_id: task.executor_id,
-          start_datetime: formatDateTimeLocal(validStartDate),
-          due_datetime: formatDateTimeLocal(validDueDate),
           is_urgent: task.is_urgent,
         })
 
-        // Устанавливаем даты для слайдера
+        // Устанавливаем даты
         setStartDate(validStartDate)
         setEndDate(validDueDate)
 
@@ -229,8 +201,6 @@ export function TaskDialog({
         // Определяем проект по умолчанию
         const defaultProjectId =
           initialProjectId || parentTask?.project_id || (projects.length > 0 ? projects[0].id : "")
-
-        console.log("Using defaultProjectId:", defaultProjectId)
 
         const now = new Date()
         // Дата начала - сегодня в 9:00
@@ -247,12 +217,10 @@ export function TaskDialog({
           project_id: defaultProjectId,
           parent_id: parentTask?.id || null,
           executor_id: null,
-          start_datetime: formatDateTimeLocal(defaultStart),
-          due_datetime: formatDateTimeLocal(defaultDue),
           is_urgent: false,
         })
 
-        // Устанавливаем даты для слайдера
+        // Устанавливаем даты
         setStartDate(defaultStart)
         setEndDate(defaultDue)
 
@@ -286,13 +254,6 @@ export function TaskDialog({
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
-
-    // Синхронизируем даты с слайдером
-    if (name === "start_datetime") {
-      setStartDate(new Date(value))
-    } else if (name === "due_datetime") {
-      setEndDate(new Date(value))
-    }
   }
 
   const handleSelectChange = (name: string, value: string | null) => {
@@ -326,7 +287,7 @@ export function TaskDialog({
     setFormData((prev) => ({ ...prev, is_urgent: checked }))
   }
 
-  const handleRangeChange = (start: Date, end: Date) => {
+  const handleDateTimeChange = (start: Date, end: Date) => {
     // Проверяем валидность дат
     if (!start || !end || isNaN(start.getTime()) || isNaN(end.getTime())) {
       return
@@ -334,11 +295,6 @@ export function TaskDialog({
 
     setStartDate(start)
     setEndDate(end)
-    setFormData((prev) => ({
-      ...prev,
-      start_datetime: formatDateTimeLocal(start),
-      due_datetime: formatDateTimeLocal(end),
-    }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -350,8 +306,6 @@ export function TaskDialog({
       if (!userData.user) {
         throw new Error("Пользователь не авторизован")
       }
-
-      console.log("Current user:", userData.user.id)
 
       // Проверяем, что проект выбран
       if (!formData.project_id) {
@@ -376,9 +330,6 @@ export function TaskDialog({
       }
 
       // Проверяем валидность дат
-      const startDate = new Date(formData.start_datetime)
-      const endDate = new Date(formData.due_datetime)
-
       if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
         toast({
           title: "Ошибка",
@@ -409,8 +360,6 @@ export function TaskDialog({
         // Можно добавить подтверждение пользователя здесь
       }
 
-      console.log("All validations passed, proceeding with save...")
-
       // Проверяем, что даты задачи находятся в рамках дат проекта
       const { data: projectData } = await supabase
         .from("projects")
@@ -421,10 +370,8 @@ export function TaskDialog({
       if (projectData) {
         const projectStart = new Date(projectData.start_date)
         const projectEnd = new Date(projectData.planned_finish)
-        const taskStart = new Date(formData.start_datetime)
-        const taskEnd = new Date(formData.due_datetime)
 
-        if (taskStart < projectStart || taskEnd > projectEnd) {
+        if (startDate < projectStart || endDate > projectEnd) {
           toast({
             title: "Ошибка",
             description: "Даты задачи должны находиться в рамках дат проекта",
@@ -435,28 +382,25 @@ export function TaskDialog({
         }
       }
 
-      // Создаем минимальный объект задачи для вставки
+      // Создаем объект задачи для вставки
       const taskData = {
         title: formData.title,
         description: formData.description || null,
         project_id: formData.project_id,
         parent_id: formData.parent_id,
         executor_id: formData.executor_id,
-        start_date: formData.start_datetime,
-        due_date: formData.due_datetime,
+        start_date: startDate.toISOString(),
+        due_date: endDate.toISOString(),
         is_urgent: formData.is_urgent,
         user_id: userData.user.id,
         status: "waiting",
       }
-
-      console.log("Saving task with data:", taskData)
 
       if (task) {
         // Обновление существующей задачи
         const { error } = await supabase.from("tasks").update(taskData).eq("id", task.id)
 
         if (error) {
-          console.error("Update error:", error)
           throw error
         }
 
@@ -469,22 +413,11 @@ export function TaskDialog({
         })
       } else {
         // Создание новой задачи
-        console.log("Attempting to insert task...")
-
-        // Используем простой insert без select для минимизации ошибок
         const { error } = await supabase.from("tasks").insert([taskData])
 
         if (error) {
-          console.error("Insert error details:", {
-            message: error.message,
-            details: error.details,
-            hint: error.hint,
-            code: error.code,
-          })
           throw error
         }
-
-        console.log("Task created successfully")
 
         toast({
           title: "Успех",
@@ -510,7 +443,7 @@ export function TaskDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{task ? "Редактировать задачу" : "Создать задачу"}</DialogTitle>
             <DialogDescription>
@@ -518,8 +451,8 @@ export function TaskDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid gap-4">
               <div className="space-y-2">
                 <Label htmlFor="title">Название задачи</Label>
                 <Input
@@ -529,7 +462,7 @@ export function TaskDialog({
                   onChange={handleChange}
                   placeholder="Введите название задачи"
                   required
-                  className="text-base" // Увеличиваем размер текста для мобильных
+                  className="text-base"
                 />
               </div>
 
@@ -537,8 +470,6 @@ export function TaskDialog({
                 <Label htmlFor="project_id">Проект</Label>
                 <Select value={formData.project_id} onValueChange={(value) => handleSelectChange("project_id", value)}>
                   <SelectTrigger className="text-base">
-                    {" "}
-                    {/* Увеличиваем размер текста для мобильных */}
                     <SelectValue placeholder="Выберите проект" />
                   </SelectTrigger>
                   <SelectContent>
@@ -567,11 +498,11 @@ export function TaskDialog({
                 onChange={handleChange}
                 placeholder="Введите описание задачи"
                 rows={3}
-                className="text-base resize-none" // Увеличиваем размер текста и отключаем изменение размера
+                className="text-base resize-none"
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid gap-4">
               {!parentTask && (
                 <div className="space-y-2">
                   <Label htmlFor="parent_id">Родительская задача</Label>
@@ -629,24 +560,14 @@ export function TaskDialog({
               </div>
             )}
 
-            {/* Иерархический слайдер даты и времени */}
-            <div className="space-y-3 sm:space-y-4">
+            {/* Выбор даты и времени */}
+            <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <Calendar className="h-4 w-4" />
                 <Label className="text-base font-medium">Период выполнения</Label>
               </div>
 
-              <HierarchicalDateTimeSlider
-                globalMinDate={new Date(new Date().getFullYear(), 0, 1)}
-                globalMaxDate={new Date(new Date().getFullYear() + 1, 11, 31)}
-                initialStart={startDate}
-                initialEnd={endDate}
-                startConstraint={dateConstraints.startConstraint}
-                endConstraint={dateConstraints.endConstraint}
-                blockedRanges={dateConstraints.blockedRanges}
-                minuteStep={15}
-                onChange={handleRangeChange}
-              />
+              <DateTimeScrollPicker initialStart={startDate} initialEnd={endDate} onChange={handleDateTimeChange} />
             </div>
 
             <div className="flex items-center space-x-2">
@@ -656,20 +577,16 @@ export function TaskDialog({
               </Label>
             </div>
 
-            <DialogFooter className="flex flex-col sm:flex-row gap-3 sm:gap-2 pt-4">
+            <DialogFooter className="flex flex-col sm:flex-row gap-3 sm:gap-2 pt-4 sticky bottom-0 bg-white border-t">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
-                className="w-full sm:w-auto order-2 sm:order-1 h-11 text-base" // Увеличиваем высоту для мобильных
+                className="w-full sm:w-auto order-2 sm:order-1 h-11 text-base"
               >
                 Отмена
               </Button>
-              <Button
-                type="submit"
-                disabled={loading}
-                className="w-full sm:w-auto order-1 sm:order-2 h-11 text-base" // Увеличиваем высоту для мобильных
-              >
+              <Button type="submit" disabled={loading} className="w-full sm:w-auto order-1 sm:order-2 h-11 text-base">
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {task ? "Обновить" : "Создать"}
               </Button>

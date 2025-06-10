@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Calendar, Clock } from "lucide-react"
 
@@ -10,6 +10,8 @@ interface DateTimeScrollPickerProps {
   initialEnd?: Date
   onChange?: (start: Date, end: Date) => void
   className?: string
+  minDate?: Date
+  maxDate?: Date
 }
 
 export default function DateTimeScrollPicker({
@@ -17,45 +19,45 @@ export default function DateTimeScrollPicker({
   initialEnd,
   onChange,
   className,
+  minDate,
+  maxDate,
 }: DateTimeScrollPickerProps) {
   const [mode, setMode] = useState<"date" | "time">("date")
   const [startDate, setStartDate] = useState(initialStart || new Date())
   const [endDate, setEndDate] = useState(initialEnd || new Date())
 
-  // Refs для скролл-контейнеров
-  const startYearRef = useRef<HTMLDivElement>(null)
-  const startMonthRef = useRef<HTMLDivElement>(null)
-  const startDayRef = useRef<HTMLDivElement>(null)
-  const startHourRef = useRef<HTMLDivElement>(null)
-  const startMinuteRef = useRef<HTMLDivElement>(null)
+  // Мемоизированные массивы для выбора
+  const years = useMemo(() => {
+    const currentYear = new Date().getFullYear()
+    const minYear = minDate ? minDate.getFullYear() : currentYear
+    const maxYear = maxDate ? maxDate.getFullYear() : currentYear + 5
+    return Array.from({ length: maxYear - minYear + 1 }, (_, i) => minYear + i)
+  }, [minDate, maxDate])
 
-  const endYearRef = useRef<HTMLDivElement>(null)
-  const endMonthRef = useRef<HTMLDivElement>(null)
-  const endDayRef = useRef<HTMLDivElement>(null)
-  const endHourRef = useRef<HTMLDivElement>(null)
-  const endMinuteRef = useRef<HTMLDivElement>(null)
+  const months = useMemo(
+    () => [
+      "Январь",
+      "Февраль",
+      "Март",
+      "Апрель",
+      "Май",
+      "Июнь",
+      "Июль",
+      "Август",
+      "Сентябрь",
+      "Октябрь",
+      "Ноябрь",
+      "Декабрь",
+    ],
+    [],
+  )
 
-  // Генерация массивов для выбора
-  const years = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() + i)
-  const months = [
-    "Январь",
-    "Февраль",
-    "Март",
-    "Апрель",
-    "Май",
-    "Июнь",
-    "Июль",
-    "Август",
-    "Сентябрь",
-    "Октябрь",
-    "Ноябрь",
-    "Декабрь",
-  ]
-  const getDaysInMonth = (year: number, month: number) => {
+  const getDaysInMonth = useCallback((year: number, month: number) => {
     return new Date(year, month + 1, 0).getDate()
-  }
-  const hours = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, "0"))
-  const minutes = Array.from({ length: 4 }, (_, i) => (i * 15).toString().padStart(2, "0"))
+  }, [])
+
+  const hours = useMemo(() => Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, "0")), [])
+  const minutes = useMemo(() => Array.from({ length: 4 }, (_, i) => (i * 15).toString().padStart(2, "0")), [])
 
   // Обновление дат при изменении
   useEffect(() => {
@@ -64,129 +66,190 @@ export default function DateTimeScrollPicker({
     }
   }, [startDate, endDate, onChange])
 
-  // Функция для создания скролл-селектора
-  const createScrollSelector = (
-    items: (string | number)[],
-    selectedValue: string | number,
-    onSelect: (value: string | number) => void,
-    ref: React.RefObject<HTMLDivElement>,
-  ) => {
-    const [initialScroll, setInitialScroll] = useState<number | null>(null)
+  // Оптимизированная функция для создания скролл-селектора
+  const createScrollSelector = useCallback(
+    (
+      items: (string | number)[],
+      selectedValue: string | number,
+      onSelect: (value: string | number) => void,
+      label: string,
+    ) => {
+      const scrollRef = useRef<HTMLDivElement>(null)
+      const [isScrolling, setIsScrolling] = useState(false)
 
-    useEffect(() => {
-      if (ref.current) {
-        const selectedIndex = items.findIndex((item) => item.toString() === selectedValue.toString())
-        if (selectedIndex !== -1) {
-          setInitialScroll(selectedIndex * 40)
+      useEffect(() => {
+        if (scrollRef.current && !isScrolling) {
+          const selectedIndex = items.findIndex((item) => item.toString() === selectedValue.toString())
+          if (selectedIndex !== -1) {
+            scrollRef.current.scrollTop = selectedIndex * 40
+          }
         }
-      }
-    }, [selectedValue, items, ref])
+      }, [selectedValue, items, isScrolling])
 
-    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-      const container = e.currentTarget
-      const itemHeight = 40
-      const scrollTop = container.scrollTop
-      const centerIndex = Math.round(scrollTop / itemHeight)
-      const selectedItem = items[centerIndex]
+      const handleScroll = useCallback(
+        (e: React.UIEvent<HTMLDivElement>) => {
+          if (!isScrolling) setIsScrolling(true)
 
-      if (selectedItem !== undefined) {
-        onSelect(selectedItem)
-      }
-    }
+          const container = e.currentTarget
+          const itemHeight = 40
+          const scrollTop = container.scrollTop
+          const centerIndex = Math.round(scrollTop / itemHeight)
+          const selectedItem = items[centerIndex]
 
-    return (
-      <div
-        ref={ref}
-        className="h-32 overflow-y-auto scrollbar-hide relative"
-        onScroll={handleScroll}
-        style={{ scrollSnapType: "y mandatory", ...(initialScroll !== null ? { scrollTop: initialScroll } : {}) }}
-      >
-        {/* Padding сверху и снизу для центрирования */}
-        <div className="h-12"></div>
-        {items.map((item, index) => (
+          if (selectedItem !== undefined && selectedItem.toString() !== selectedValue.toString()) {
+            onSelect(selectedItem)
+          }
+
+          // Сброс флага скроллинга через небольшую задержку
+          setTimeout(() => setIsScrolling(false), 100)
+        },
+        [items, selectedValue, onSelect, isScrolling],
+      )
+
+      const handleItemClick = useCallback(
+        (item: string | number, index: number) => {
+          onSelect(item)
+          if (scrollRef.current) {
+            scrollRef.current.scrollTop = index * 40
+          }
+        },
+        [onSelect],
+      )
+
+      return (
+        <div className="flex flex-col">
+          <div className="text-xs text-gray-500 mb-1 text-center font-medium">{label}</div>
           <div
-            key={index}
-            className="h-10 flex items-center justify-center text-lg font-medium cursor-pointer hover:bg-gray-100 transition-colors"
-            style={{ scrollSnapAlign: "center" }}
-            onClick={() => {
-              onSelect(item)
-              if (ref.current) {
-                ref.current.scrollTop = index * 40
-              }
-            }}
+            ref={scrollRef}
+            className="h-32 overflow-y-auto scrollbar-hide relative bg-gray-50 rounded-lg"
+            onScroll={handleScroll}
+            style={{ scrollSnapType: "y mandatory" }}
           >
-            {item}
-          </div>
-        ))}
-        <div className="h-12"></div>
+            {/* Padding сверху и снизу для центрирования */}
+            <div className="h-12"></div>
+            {items.map((item, index) => (
+              <div
+                key={`${item}-${index}`}
+                className="h-10 flex items-center justify-center text-base font-medium cursor-pointer hover:bg-blue-50 transition-colors duration-150"
+                style={{ scrollSnapAlign: "center" }}
+                onClick={() => handleItemClick(item, index)}
+              >
+                {item}
+              </div>
+            ))}
+            <div className="h-12"></div>
 
-        {/* Индикатор выбранного элемента */}
-        <div className="absolute top-1/2 left-0 right-0 h-10 border-t-2 border-b-2 border-blue-500 bg-blue-50/50 pointer-events-none transform -translate-y-1/2"></div>
-      </div>
-    )
-  }
+            {/* Индикатор выбранного элемента */}
+            <div className="absolute top-1/2 left-1 right-1 h-10 border-2 border-blue-500 bg-blue-100/30 rounded-md pointer-events-none transform -translate-y-1/2"></div>
+          </div>
+        </div>
+      )
+    },
+    [],
+  )
 
   // Обработчики изменения даты начала
-  const handleStartYearChange = (year: string | number) => {
-    const newDate = new Date(startDate)
-    newDate.setFullYear(Number(year))
-    setStartDate(newDate)
-  }
+  const handleStartYearChange = useCallback(
+    (year: string | number) => {
+      const newDate = new Date(startDate)
+      newDate.setFullYear(Number(year))
+      setStartDate(newDate)
+    },
+    [startDate],
+  )
 
-  const handleStartMonthChange = (monthIndex: string | number) => {
-    const newDate = new Date(startDate)
-    newDate.setMonth(Number(monthIndex))
-    setStartDate(newDate)
-  }
+  const handleStartMonthChange = useCallback(
+    (monthIndex: string | number) => {
+      const newDate = new Date(startDate)
+      newDate.setMonth(Number(monthIndex))
+      setStartDate(newDate)
+    },
+    [startDate],
+  )
 
-  const handleStartDayChange = (day: string | number) => {
-    const newDate = new Date(startDate)
-    newDate.setDate(Number(day))
-    setStartDate(newDate)
-  }
+  const handleStartDayChange = useCallback(
+    (day: string | number) => {
+      const newDate = new Date(startDate)
+      newDate.setDate(Number(day))
+      setStartDate(newDate)
+    },
+    [startDate],
+  )
 
-  const handleStartHourChange = (hour: string | number) => {
-    const newDate = new Date(startDate)
-    newDate.setHours(Number(hour))
-    setStartDate(newDate)
-  }
+  const handleStartHourChange = useCallback(
+    (hour: string | number) => {
+      const newDate = new Date(startDate)
+      newDate.setHours(Number(hour))
+      setStartDate(newDate)
+    },
+    [startDate],
+  )
 
-  const handleStartMinuteChange = (minute: string | number) => {
-    const newDate = new Date(startDate)
-    newDate.setMinutes(Number(minute))
-    setStartDate(newDate)
-  }
+  const handleStartMinuteChange = useCallback(
+    (minute: string | number) => {
+      const newDate = new Date(startDate)
+      newDate.setMinutes(Number(minute))
+      setStartDate(newDate)
+    },
+    [startDate],
+  )
 
   // Обработчики изменения даты конца
-  const handleEndYearChange = (year: string | number) => {
-    const newDate = new Date(endDate)
-    newDate.setFullYear(Number(year))
-    setEndDate(newDate)
-  }
+  const handleEndYearChange = useCallback(
+    (year: string | number) => {
+      const newDate = new Date(endDate)
+      newDate.setFullYear(Number(year))
+      setEndDate(newDate)
+    },
+    [endDate],
+  )
 
-  const handleEndMonthChange = (monthIndex: string | number) => {
-    const newDate = new Date(endDate)
-    newDate.setMonth(Number(monthIndex))
-    setEndDate(newDate)
-  }
+  const handleEndMonthChange = useCallback(
+    (monthIndex: string | number) => {
+      const newDate = new Date(endDate)
+      newDate.setMonth(Number(monthIndex))
+      setEndDate(newDate)
+    },
+    [endDate],
+  )
 
-  const handleEndDayChange = (day: string | number) => {
-    const newDate = new Date(endDate)
-    newDate.setDate(Number(day))
-    setEndDate(newDate)
-  }
+  const handleEndDayChange = useCallback(
+    (day: string | number) => {
+      const newDate = new Date(endDate)
+      newDate.setDate(Number(day))
+      setEndDate(newDate)
+    },
+    [endDate],
+  )
 
-  const handleEndHourChange = (hour: string | number) => {
-    const newDate = new Date(endDate)
-    newDate.setHours(Number(hour))
-    setEndDate(newDate)
-  }
+  const handleEndHourChange = useCallback(
+    (hour: string | number) => {
+      const newDate = new Date(endDate)
+      newDate.setHours(Number(hour))
+      setEndDate(newDate)
+    },
+    [endDate],
+  )
 
-  const handleEndMinuteChange = (minute: string | number) => {
-    const newDate = new Date(endDate)
-    newDate.setMinutes(Number(minute))
-    setEndDate(newDate)
-  }
+  const handleEndMinuteChange = useCallback(
+    (minute: string | number) => {
+      const newDate = new Date(endDate)
+      newDate.setMinutes(Number(minute))
+      setEndDate(newDate)
+    },
+    [endDate],
+  )
+
+  // Мемоизированные массивы дней для каждой даты
+  const startDays = useMemo(
+    () => Array.from({ length: getDaysInMonth(startDate.getFullYear(), startDate.getMonth()) }, (_, i) => i + 1),
+    [startDate, getDaysInMonth],
+  )
+
+  const endDays = useMemo(
+    () => Array.from({ length: getDaysInMonth(endDate.getFullYear(), endDate.getMonth()) }, (_, i) => i + 1),
+    [endDate, getDaysInMonth],
+  )
 
   return (
     <div className={`space-y-4 ${className}`}>
@@ -217,11 +280,11 @@ export default function DateTimeScrollPicker({
       {/* Отображение выбранного периода */}
       <div className="text-center p-3 bg-gray-50 rounded-lg">
         <div className="text-sm text-gray-600 mb-1">Выбранный период:</div>
-        <div className="font-medium">
-          {startDate.toLocaleDateString("ru-RU")}{" "}
+        <div className="font-medium text-sm">
+          {startDate.toLocaleDateString("ru-RU", { day: "2-digit", month: "short" })}{" "}
           {startDate.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}
           {" — "}
-          {endDate.toLocaleDateString("ru-RU")}{" "}
+          {endDate.toLocaleDateString("ru-RU", { day: "2-digit", month: "short" })}{" "}
           {endDate.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}
         </div>
       </div>
@@ -232,31 +295,14 @@ export default function DateTimeScrollPicker({
           <div>
             <div className="text-sm font-medium mb-2">Дата начала</div>
             <div className="grid grid-cols-3 gap-2">
-              <div>
-                <div className="text-xs text-gray-500 mb-1 text-center">Год</div>
-                {createScrollSelector(years, startDate.getFullYear(), handleStartYearChange, startYearRef)}
-              </div>
-              <div>
-                <div className="text-xs text-gray-500 mb-1 text-center">Месяц</div>
-                {createScrollSelector(
-                  months.map((month, index) => index),
-                  startDate.getMonth(),
-                  handleStartMonthChange,
-                  startMonthRef,
-                )}
-              </div>
-              <div>
-                <div className="text-xs text-gray-500 mb-1 text-center">День</div>
-                {createScrollSelector(
-                  Array.from(
-                    { length: getDaysInMonth(startDate.getFullYear(), startDate.getMonth()) },
-                    (_, i) => i + 1,
-                  ),
-                  startDate.getDate(),
-                  handleStartDayChange,
-                  startDayRef,
-                )}
-              </div>
+              {createScrollSelector(years, startDate.getFullYear(), handleStartYearChange, "Год")}
+              {createScrollSelector(
+                months.map((_, index) => index),
+                startDate.getMonth(),
+                handleStartMonthChange,
+                "Месяц",
+              )}
+              {createScrollSelector(startDays, startDate.getDate(), handleStartDayChange, "День")}
             </div>
           </div>
 
@@ -264,28 +310,14 @@ export default function DateTimeScrollPicker({
           <div>
             <div className="text-sm font-medium mb-2">Дата окончания</div>
             <div className="grid grid-cols-3 gap-2">
-              <div>
-                <div className="text-xs text-gray-500 mb-1 text-center">Год</div>
-                {createScrollSelector(years, endDate.getFullYear(), handleEndYearChange, endYearRef)}
-              </div>
-              <div>
-                <div className="text-xs text-gray-500 mb-1 text-center">Месяц</div>
-                {createScrollSelector(
-                  months.map((month, index) => index),
-                  endDate.getMonth(),
-                  handleEndMonthChange,
-                  endMonthRef,
-                )}
-              </div>
-              <div>
-                <div className="text-xs text-gray-500 mb-1 text-center">День</div>
-                {createScrollSelector(
-                  Array.from({ length: getDaysInMonth(endDate.getFullYear(), endDate.getMonth()) }, (_, i) => i + 1),
-                  endDate.getDate(),
-                  handleEndDayChange,
-                  endDayRef,
-                )}
-              </div>
+              {createScrollSelector(years, endDate.getFullYear(), handleEndYearChange, "Год")}
+              {createScrollSelector(
+                months.map((_, index) => index),
+                endDate.getMonth(),
+                handleEndMonthChange,
+                "Месяц",
+              )}
+              {createScrollSelector(endDays, endDate.getDate(), handleEndDayChange, "День")}
             </div>
           </div>
         </div>
@@ -295,24 +327,18 @@ export default function DateTimeScrollPicker({
           <div>
             <div className="text-sm font-medium mb-2">Время начала</div>
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <div className="text-xs text-gray-500 mb-1 text-center">Час</div>
-                {createScrollSelector(
-                  hours,
-                  startDate.getHours().toString().padStart(2, "0"),
-                  handleStartHourChange,
-                  startHourRef,
-                )}
-              </div>
-              <div>
-                <div className="text-xs text-gray-500 mb-1 text-center">Минута</div>
-                {createScrollSelector(
-                  minutes,
-                  Math.floor(startDate.getMinutes() / 15) * 15,
-                  handleStartMinuteChange,
-                  startMinuteRef,
-                )}
-              </div>
+              {createScrollSelector(
+                hours,
+                startDate.getHours().toString().padStart(2, "0"),
+                handleStartHourChange,
+                "Час",
+              )}
+              {createScrollSelector(
+                minutes,
+                Math.floor(startDate.getMinutes() / 15) * 15,
+                handleStartMinuteChange,
+                "Минута",
+              )}
             </div>
           </div>
 
@@ -320,24 +346,13 @@ export default function DateTimeScrollPicker({
           <div>
             <div className="text-sm font-medium mb-2">Время окончания</div>
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <div className="text-xs text-gray-500 mb-1 text-center">Час</div>
-                {createScrollSelector(
-                  hours,
-                  endDate.getHours().toString().padStart(2, "0"),
-                  handleEndHourChange,
-                  endHourRef,
-                )}
-              </div>
-              <div>
-                <div className="text-xs text-gray-500 mb-1 text-center">Минута</div>
-                {createScrollSelector(
-                  minutes,
-                  Math.floor(endDate.getMinutes() / 15) * 15,
-                  handleEndMinuteChange,
-                  endMinuteRef,
-                )}
-              </div>
+              {createScrollSelector(hours, endDate.getHours().toString().padStart(2, "0"), handleEndHourChange, "Час")}
+              {createScrollSelector(
+                minutes,
+                Math.floor(endDate.getMinutes() / 15) * 15,
+                handleEndMinuteChange,
+                "Минута",
+              )}
             </div>
           </div>
         </div>
