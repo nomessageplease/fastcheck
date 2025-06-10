@@ -1,6 +1,4 @@
 "use client"
-
-import type React from "react"
 import { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Calendar, Clock } from "lucide-react"
@@ -34,23 +32,7 @@ export default function DateTimeScrollPicker({
     return Array.from({ length: maxYear - minYear + 1 }, (_, i) => minYear + i)
   }, [minDate, maxDate])
 
-  const months = useMemo(
-    () => [
-      "Январь",
-      "Февраль",
-      "Март",
-      "Апрель",
-      "Май",
-      "Июнь",
-      "Июль",
-      "Август",
-      "Сентябрь",
-      "Октябрь",
-      "Ноябрь",
-      "Декабрь",
-    ],
-    [],
-  )
+  const months = useMemo(() => ["Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"], [])
 
   const getDaysInMonth = useCallback((year: number, month: number) => {
     return new Date(year, month + 1, 0).getDate()
@@ -66,7 +48,7 @@ export default function DateTimeScrollPicker({
     }
   }, [startDate, endDate, onChange])
 
-  // Оптимизированная функция для создания скролл-селектора
+  // Упрощенная функция для создания скролл-селектора
   const createScrollSelector = useCallback(
     (
       items: (string | number)[],
@@ -75,42 +57,54 @@ export default function DateTimeScrollPicker({
       label: string,
     ) => {
       const scrollRef = useRef<HTMLDivElement>(null)
-      const [isScrolling, setIsScrolling] = useState(false)
+      const timeoutRef = useRef<NodeJS.Timeout>()
+      const selectedIndex = useMemo(
+        () => items.findIndex((item) => item.toString() === selectedValue.toString()),
+        [items, selectedValue],
+      )
 
+      // Устанавливаем начальную позицию скролла
       useEffect(() => {
-        if (scrollRef.current && !isScrolling) {
-          const selectedIndex = items.findIndex((item) => item.toString() === selectedValue.toString())
+        if (scrollRef.current) {
           if (selectedIndex !== -1) {
-            scrollRef.current.scrollTop = selectedIndex * 40
+            const itemHeight = 40
+            const scrollTop = selectedIndex * itemHeight
+            scrollRef.current.scrollTop = scrollTop
           }
         }
-      }, [selectedValue, items, isScrolling])
+      }, [items, selectedValue, selectedIndex])
 
-      const handleScroll = useCallback(
-        (e: React.UIEvent<HTMLDivElement>) => {
-          if (!isScrolling) setIsScrolling(true)
+      const handleScroll = useCallback(() => {
+        if (!scrollRef.current) return
 
-          const container = e.currentTarget
+        // Очищаем предыдущий таймаут
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current)
+        }
+
+        // Устанавливаем новый таймаут для обработки скролла
+        timeoutRef.current = setTimeout(() => {
+          if (!scrollRef.current) return
+
           const itemHeight = 40
-          const scrollTop = container.scrollTop
+          const scrollTop = scrollRef.current.scrollTop
           const centerIndex = Math.round(scrollTop / itemHeight)
-          const selectedItem = items[centerIndex]
 
-          if (selectedItem !== undefined && selectedItem.toString() !== selectedValue.toString()) {
-            onSelect(selectedItem)
+          if (centerIndex >= 0 && centerIndex < items.length) {
+            const selectedItem = items[centerIndex]
+            if (selectedItem !== undefined && selectedItem.toString() !== selectedValue.toString()) {
+              onSelect(selectedItem)
+            }
           }
-
-          // Сброс флага скроллинга через небольшую задержку
-          setTimeout(() => setIsScrolling(false), 100)
-        },
-        [items, selectedValue, onSelect, isScrolling],
-      )
+        }, 100)
+      }, [items, selectedValue, onSelect])
 
       const handleItemClick = useCallback(
         (item: string | number, index: number) => {
           onSelect(item)
           if (scrollRef.current) {
-            scrollRef.current.scrollTop = index * 40
+            const itemHeight = 40
+            scrollRef.current.scrollTop = index * itemHeight
           }
         },
         [onSelect],
@@ -123,24 +117,27 @@ export default function DateTimeScrollPicker({
             ref={scrollRef}
             className="h-32 overflow-y-auto scrollbar-hide relative bg-gray-50 rounded-lg"
             onScroll={handleScroll}
-            style={{ scrollSnapType: "y mandatory" }}
           >
             {/* Padding сверху и снизу для центрирования */}
             <div className="h-12"></div>
-            {items.map((item, index) => (
-              <div
-                key={`${item}-${index}`}
-                className="h-10 flex items-center justify-center text-base font-medium cursor-pointer hover:bg-blue-50 transition-colors duration-150"
-                style={{ scrollSnapAlign: "center" }}
-                onClick={() => handleItemClick(item, index)}
-              >
-                {item}
-              </div>
-            ))}
+            {items.map((item, index) => {
+              const isSelected = item.toString() === selectedValue.toString()
+              return (
+                <div
+                  key={`${item}-${index}`}
+                  className={`h-10 flex items-center justify-center text-base font-medium cursor-pointer transition-colors duration-150 ${
+                    isSelected ? "text-blue-600 font-semibold" : "text-gray-700 hover:bg-blue-50"
+                  }`}
+                  onClick={() => handleItemClick(item, index)}
+                >
+                  {item}
+                </div>
+              )
+            })}
             <div className="h-12"></div>
 
             {/* Индикатор выбранного элемента */}
-            <div className="absolute top-1/2 left-1 right-1 h-10 border-2 border-blue-500 bg-blue-100/30 rounded-md pointer-events-none transform -translate-y-1/2"></div>
+            <div className="absolute top-1/2 left-1 right-1 h-10 border-2 border-blue-500 bg-blue-100/20 rounded-md pointer-events-none transform -translate-y-1/2"></div>
           </div>
         </div>
       )
