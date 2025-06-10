@@ -5,7 +5,6 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase/client"
 import type { Project, Executor } from "@/lib/supabase/types"
-import { calculateTaskConstraints } from "@/lib/task-constraints"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -20,18 +19,7 @@ import {
 } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2 } from "lucide-react"
-import HierarchicalDateTimeSlider from "@/components/ui/hierarchical-datetime-slider"
-
-// Функция для корректного форматирования даты для datetime-local input
-const formatDateTimeLocal = (date: Date): string => {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, "0")
-  const day = String(date.getDate()).padStart(2, "0")
-  const hours = String(date.getHours()).padStart(2, "0")
-  const minutes = String(date.getMinutes()).padStart(2, "0")
-
-  return `${year}-${month}-${day}T${hours}:${minutes}`
-}
+import DateTimeScrollPicker from "@/components/ui/date-time-scroll-picker"
 
 interface ProjectDialogProps {
   open: boolean
@@ -48,37 +36,26 @@ export function ProjectDialog({ open, onOpenChange, onSuccess, project, executor
     name: "",
     description: "",
     color_icon: "#3B82F6", // Default blue color
-    start_date: "",
-    planned_finish: "",
   })
 
-  // Состояния для DateTimeRangeSlider
+  // Состояния для дат
   const [startDate, setStartDate] = useState<Date>(new Date())
   const [endDate, setEndDate] = useState<Date>(new Date())
-
-  // Получаем ограничения для проекта
-  const constraints = calculateTaskConstraints({
-    type: "project",
-    globalMinDate: new Date(new Date().getFullYear(), 0, 1),
-    globalMaxDate: new Date(new Date().getFullYear() + 2, 11, 31),
-  })
 
   useEffect(() => {
     if (open) {
       if (project) {
-        const startDate = new Date(project.start_date)
-        const endDate = new Date(project.planned_finish)
+        const projectStartDate = new Date(project.start_date)
+        const projectEndDate = new Date(project.planned_finish)
 
         setFormData({
           name: project.name,
           description: project.description || "",
           color_icon: project.color_icon,
-          start_date: formatDateTimeLocal(startDate),
-          planned_finish: formatDateTimeLocal(endDate),
         })
 
-        setStartDate(startDate)
-        setEndDate(endDate)
+        setStartDate(projectStartDate)
+        setEndDate(projectEndDate)
       } else {
         const now = new Date()
         // Дата начала - сегодня в 9:00
@@ -94,8 +71,6 @@ export function ProjectDialog({ open, onOpenChange, onSuccess, project, executor
           name: "",
           description: "",
           color_icon: "#3B82F6",
-          start_date: formatDateTimeLocal(defaultStart),
-          planned_finish: formatDateTimeLocal(defaultEnd),
         })
 
         setStartDate(defaultStart)
@@ -107,23 +82,11 @@ export function ProjectDialog({ open, onOpenChange, onSuccess, project, executor
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
-
-    // Синхронизируем даты с слайдером
-    if (name === "start_date") {
-      setStartDate(new Date(value))
-    } else if (name === "planned_finish") {
-      setEndDate(new Date(value))
-    }
   }
 
-  const handleRangeChange = (start: Date, end: Date) => {
+  const handleDateTimeChange = (start: Date, end: Date) => {
     setStartDate(start)
     setEndDate(end)
-    setFormData((prev) => ({
-      ...prev,
-      start_date: formatDateTimeLocal(start),
-      planned_finish: formatDateTimeLocal(end),
-    }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -140,8 +103,8 @@ export function ProjectDialog({ open, onOpenChange, onSuccess, project, executor
         name: formData.name,
         description: formData.description || null,
         color_icon: formData.color_icon,
-        start_date: new Date(formData.start_date).toISOString(),
-        planned_finish: new Date(formData.planned_finish).toISOString(),
+        start_date: startDate.toISOString(),
+        planned_finish: endDate.toISOString(),
         user_id: userData.user.id,
       }
 
@@ -183,7 +146,7 @@ export function ProjectDialog({ open, onOpenChange, onSuccess, project, executor
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{project ? "Редактировать проект" : "Создать новый проект"}</DialogTitle>
           <DialogDescription>
@@ -213,6 +176,7 @@ export function ProjectDialog({ open, onOpenChange, onSuccess, project, executor
                 value={formData.description}
                 onChange={handleChange}
                 placeholder="Подробное описание проекта"
+                rows={3}
               />
             </div>
 
@@ -224,25 +188,17 @@ export function ProjectDialog({ open, onOpenChange, onSuccess, project, executor
                 name="color_icon"
                 value={formData.color_icon}
                 onChange={handleChange}
+                className="h-10"
               />
             </div>
 
             <div className="grid gap-2">
               <Label>Сроки проекта</Label>
-              <HierarchicalDateTimeSlider
-                globalMinDate={new Date(new Date().getFullYear(), 0, 1)}
-                globalMaxDate={new Date(new Date().getFullYear() + 2, 11, 31)}
-                initialStart={startDate}
-                initialEnd={endDate}
-                startConstraint={null}
-                endConstraint={null}
-                minuteStep={15}
-                onChange={handleRangeChange}
-              />
+              <DateTimeScrollPicker initialStart={startDate} initialEnd={endDate} onChange={handleDateTimeChange} />
             </div>
           </div>
 
-          <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-0">
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-0 sticky bottom-0 bg-white pt-4 border-t">
             <Button
               type="button"
               variant="outline"
