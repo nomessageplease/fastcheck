@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge"
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
 import { getTaskUrgencyStatus } from "@/lib/task-urgency-utils"
 import { cn } from "@/lib/utils"
+import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd"
 
 interface ProjectsPageProps {
   user: SupabaseUser | null
@@ -109,9 +110,15 @@ export function ProjectsPage({ user, projects, executors, onDataChange }: Projec
     setDeleteDialogOpen(true)
   }
 
-  const handleProjectHeaderClick = (project: Project) => {
-    setSelectedProject(project)
-    setProjectDialogOpen(true)
+  const handleProjectHeaderClick = (e: React.MouseEvent, project: Project) => {
+    // Проверяем, что клик не был по кнопкам или другим интерактивным элементам
+    const target = e.target as HTMLElement
+    if (target.closest("button") || target.closest('[role="button"]')) {
+      return
+    }
+
+    // Переключаем развернутое состояние проекта
+    toggleProject(project.id)
   }
 
   const handleCreateTask = useCallback((e: React.MouseEvent, project: Project, parentTask?: Task) => {
@@ -273,12 +280,52 @@ export function ProjectsPage({ user, projects, executors, onDataChange }: Projec
     return tasks.filter((task) => task.parent_id === parentId)
   }
 
+  const handleDragEnd = async (result: any) => {
+    if (!result.destination) return
+
+    const { source, destination, type } = result
+
+    if (type === "project") {
+      // Перетаскивание проектов
+      const newProjects = Array.from(filteredProjects)
+      const [reorderedProject] = newProjects.splice(source.index, 1)
+      newProjects.splice(destination.index, 0, reorderedProject)
+
+      // Здесь можно добавить логику сохранения порядка в базе данных
+      console.log(
+        "Reordered projects:",
+        newProjects.map((p) => p.name),
+      )
+    } else if (type === "task") {
+      // Перетаскивание задач внутри проекта
+      const projectId = source.droppableId.replace("tasks-", "")
+      const tasks = projectTasks[projectId] || []
+      const mainTasks = getMainTasks(tasks)
+
+      const newMainTasks = Array.from(mainTasks)
+      const [reorderedTask] = newMainTasks.splice(source.index, 1)
+      newMainTasks.splice(destination.index, 0, reorderedTask)
+
+      console.log(
+        "Reordered tasks:",
+        newMainTasks.map((t) => t.title),
+      )
+    }
+  }
+
   const TaskItem = ({
     task,
     tasks,
     level = 0,
     project,
-  }: { task: Task; tasks: Task[]; level?: number; project: Project }) => {
+    dragHandleProps,
+  }: {
+    task: Task
+    tasks: Task[]
+    level?: number
+    project: Project
+    dragHandleProps?: any
+  }) => {
     const subtasks = getSubtasks(tasks, task.id)
     const hasSubtasks = subtasks.length > 0
     const isExpanded = expandedTasks.has(task.id)
@@ -294,12 +341,25 @@ export function ProjectsPage({ user, projects, executors, onDataChange }: Projec
           )}
         >
           <div className="flex items-center gap-3 flex-1">
+            {level === 0 && dragHandleProps && (
+              <div
+                {...dragHandleProps}
+                className="p-1 h-6 w-6 flex items-center justify-center flex-shrink-0 hover:bg-gray-200 rounded cursor-grab active:cursor-grabbing"
+                title="Перетащить задачу"
+              >
+                <div className="flex flex-col gap-0.5">
+                  <div className="w-3 h-0.5 bg-gray-400 rounded"></div>
+                  <div className="w-3 h-0.5 bg-gray-400 rounded"></div>
+                  <div className="w-3 h-0.5 bg-gray-400 rounded"></div>
+                </div>
+              </div>
+            )}
             {hasSubtasks && (
               <Button variant="ghost" size="sm" onClick={() => toggleTask(task.id)} className="p-1 h-6 w-6">
                 {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
               </Button>
             )}
-            {!hasSubtasks && <div className="w-6" />}
+            {!hasSubtasks && !dragHandleProps && <div className="w-6" />}
 
             <div className="flex-1 text-left">
               <div className="font-medium text-sm text-left">{task.title}</div>
@@ -424,131 +484,184 @@ export function ProjectsPage({ user, projects, executors, onDataChange }: Projec
           )}
         </div>
       ) : (
-        <div className="space-y-4">
-          {filteredProjects.map((project) => {
-            const isExpanded = expandedProjects.has(project.id)
-            const tasks = projectTasks[project.id] || []
-            const mainTasks = getMainTasks(tasks)
-            const isLoading = loadingTasks.has(project.id)
-            const stats = getProjectStats(project.id)
+        <DragDropContext onDragEnd={handleDragEnd}>
+          <Droppable droppableId="projects" type="project">
+            {(provided) => (
+              <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-4">
+                {filteredProjects.map((project, index) => {
+                  const isExpanded = expandedProjects.has(project.id)
+                  const tasks = projectTasks[project.id] || []
+                  const mainTasks = getMainTasks(tasks)
+                  const isLoading = loadingTasks.has(project.id)
+                  const stats = getProjectStats(project.id)
 
-            return (
-              <Card key={project.id} className="overflow-hidden">
-                <Collapsible open={isExpanded} onOpenChange={() => toggleProject(project.id)}>
-                  <CardHeader
-                    className="cursor-pointer px-4 py-3 sm:px-6 hover:bg-gray-50 transition-colors"
-                    onClick={() => handleProjectHeaderClick(project)}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="p-1 h-6 w-6 flex items-center justify-center flex-shrink-0 hover:bg-gray-200 rounded"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              toggleProject(project.id)
-                            }}
-                          >
-                            {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                          </div>
-                          <CardTitle className="text-lg truncate">{project.name}</CardTitle>
-                        </div>
-                        <CardDescription className="mt-1 ml-8 line-clamp-2">{project.description}</CardDescription>
-
-                        {/* Прогресс-бар проекта - всегда видимый */}
-                        <div className="ml-8 mt-2">
-                          <Progress value={stats.progress} className="h-2" />
-                        </div>
-
-                        {/* Детальная статистика - только при развернутом состоянии */}
-                        {isExpanded && (
-                          <div className="ml-8 mt-1">
-                            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-x-3 gap-y-0 text-xs text-gray-500">
-                              <span>Всего: {stats.total}</span>
-                              <span>Завершено: {stats.completed}</span>
-                              <span>В работе: {stats.inProgress}</span>
-                              <span>Ожидание: {stats.pending}</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex gap-1 ml-2 flex-shrink-0">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={(e) => handleEditProject(e, project)}
-                          className="h-8 w-8 touch-manipulation"
+                  return (
+                    <Draggable key={project.id} draggableId={project.id} index={index}>
+                      {(provided, snapshot) => (
+                        <Card
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          className={`overflow-hidden ${snapshot.isDragging ? "shadow-lg" : ""}`}
                         >
-                          <Edit className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8 text-destructive touch-manipulation"
-                          onClick={(e) => handleDeleteProject(e, project)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-
-                  <CollapsibleContent>
-                    <CardContent className="px-4 pb-3 sm:px-6">
-                      {/* Даты проекта - только при развернутом состоянии */}
-                      <div className="text-sm mb-4 ml-8 space-y-1">
-                        <p>
-                          <strong>Дата начала:</strong> {formatDate(project.start_date)}
-                        </p>
-                        <p>
-                          <strong>Дата окончания:</strong> {formatDate(project.planned_finish)}
-                        </p>
-                      </div>
-
-                      <div className="border-t pt-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="font-medium">Задачи проекта</h4>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={(e) => handleCreateTask(e, project)}
-                            className="flex items-center gap-2"
-                          >
-                            <Plus className="h-4 w-4" />
-                            <span className="hidden sm:inline">Создать задачу</span>
-                            <span className="sm:hidden">Задача</span>
-                          </Button>
-                        </div>
-                        {isLoading ? (
-                          <div className="text-center py-4 text-gray-500">Загрузка задач...</div>
-                        ) : mainTasks.length === 0 ? (
-                          <div className="text-center py-4 text-gray-500">
-                            <p className="mb-2">У проекта пока нет задач</p>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={(e) => handleCreateTask(e, project)}
-                              className="flex items-center gap-2"
+                          <Collapsible open={isExpanded} onOpenChange={() => toggleProject(project.id)}>
+                            <CardHeader
+                              className="cursor-pointer px-4 py-3 sm:px-6 hover:bg-gray-50 transition-colors"
+                              onClick={(e) => handleProjectHeaderClick(e, project)}
                             >
-                              <Plus className="h-4 w-4" />
-                              Создать первую задачу
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="space-y-2">
-                            {mainTasks.map((task) => (
-                              <TaskItem key={task.id} task={task} tasks={tasks} project={project} />
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </CollapsibleContent>
-                </Collapsible>
-              </Card>
-            )
-          })}
-        </div>
+                              <div className="flex items-start justify-between">
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                  <div
+                                    {...provided.dragHandleProps}
+                                    className="p-1 h-6 w-6 flex items-center justify-center flex-shrink-0 hover:bg-gray-200 rounded cursor-grab active:cursor-grabbing"
+                                    title="Перетащить проект"
+                                  >
+                                    <div className="flex flex-col gap-0.5">
+                                      <div className="w-3 h-0.5 bg-gray-400 rounded"></div>
+                                      <div className="w-3 h-0.5 bg-gray-400 rounded"></div>
+                                      <div className="w-3 h-0.5 bg-gray-400 rounded"></div>
+                                    </div>
+                                  </div>
+                                  <div
+                                    className="p-1 h-6 w-6 flex items-center justify-center flex-shrink-0 hover:bg-gray-200 rounded"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      toggleProject(project.id)
+                                    }}
+                                  >
+                                    {isExpanded ? (
+                                      <ChevronDown className="h-4 w-4" />
+                                    ) : (
+                                      <ChevronRight className="h-4 w-4" />
+                                    )}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <CardTitle className="text-lg truncate">{project.name}</CardTitle>
+                                    <CardDescription className="mt-1 line-clamp-2">
+                                      {project.description}
+                                    </CardDescription>
+
+                                    {/* Прогресс-бар проекта - всегда видимый */}
+                                    <div className="mt-2">
+                                      <Progress value={stats.progress} className="h-2" />
+                                    </div>
+
+                                    {/* Детальная статистика - только при развернутом состоянии */}
+                                    {isExpanded && (
+                                      <div className="mt-1">
+                                        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-x-3 gap-y-0 text-xs text-gray-500">
+                                          <span>Всего: {stats.total}</span>
+                                          <span>Завершено: {stats.completed}</span>
+                                          <span>В работе: {stats.inProgress}</span>
+                                          <span>Ожидание: {stats.pending}</span>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex gap-1 ml-2 flex-shrink-0">
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    onClick={(e) => handleEditProject(e, project)}
+                                    className="h-8 w-8 touch-manipulation"
+                                  >
+                                    <Edit className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8 text-destructive touch-manipulation"
+                                    onClick={(e) => handleDeleteProject(e, project)}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </CardHeader>
+
+                            <CollapsibleContent>
+                              <CardContent className="px-4 pb-3 sm:px-6">
+                                {/* Даты проекта - только при развернутом состоянии */}
+                                <div className="text-sm mb-4 ml-8 space-y-1">
+                                  <p>
+                                    <strong>Дата начала:</strong> {formatDate(project.start_date)}
+                                  </p>
+                                  <p>
+                                    <strong>Дата окончания:</strong> {formatDate(project.planned_finish)}
+                                  </p>
+                                </div>
+
+                                <div className="border-t pt-4">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <h4 className="font-medium">Задачи проекта</h4>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={(e) => handleCreateTask(e, project)}
+                                      className="flex items-center gap-2"
+                                    >
+                                      <Plus className="h-4 w-4" />
+                                      <span className="hidden sm:inline">Создать задачу</span>
+                                      <span className="sm:hidden">Задача</span>
+                                    </Button>
+                                  </div>
+                                  {isLoading ? (
+                                    <div className="text-center py-4 text-gray-500">Загрузка задач...</div>
+                                  ) : mainTasks.length === 0 ? (
+                                    <div className="text-center py-4 text-gray-500">
+                                      <p className="mb-2">У проекта пока нет задач</p>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={(e) => handleCreateTask(e, project)}
+                                        className="flex items-center gap-2"
+                                      >
+                                        <Plus className="h-4 w-4" />
+                                        Создать первую задачу
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <Droppable droppableId={`tasks-${project.id}`} type="task">
+                                      {(provided) => (
+                                        <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
+                                          {mainTasks.map((task, taskIndex) => (
+                                            <Draggable key={task.id} draggableId={task.id} index={taskIndex}>
+                                              {(provided, snapshot) => (
+                                                <div
+                                                  ref={provided.innerRef}
+                                                  {...provided.draggableProps}
+                                                  className={snapshot.isDragging ? "z-50" : ""}
+                                                >
+                                                  <TaskItem
+                                                    key={task.id}
+                                                    task={task}
+                                                    tasks={tasks}
+                                                    project={project}
+                                                    dragHandleProps={provided.dragHandleProps}
+                                                  />
+                                                </div>
+                                              )}
+                                            </Draggable>
+                                          ))}
+                                          {provided.placeholder}
+                                        </div>
+                                      )}
+                                    </Droppable>
+                                  )}
+                                </div>
+                              </CardContent>
+                            </CollapsibleContent>
+                          </Collapsible>
+                        </Card>
+                      )}
+                    </Draggable>
+                  )
+                })}
+                {provided.placeholder}
+              </div>
+            )}
+          </Droppable>
+        </DragDropContext>
       )}
 
       <ProjectDialog
